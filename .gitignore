@@ -4,6 +4,7 @@ __pycache__/
 .code-buddy-data/
 web/node_modules/
 web/dist/
+web/tsconfig.tsbuildinfo
 .env
 *.egg-info/
 .DS_Store
