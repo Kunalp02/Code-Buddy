@@ -18,11 +18,13 @@ Local-first codebase intelligence: point at a project folder, get a searchable c
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r server/requirements.txt
 
 cd web && npm install && cd ..
 ```
+
+**Windows:** `tree-sitter-dockerfile` and `tree-sitter-dart` have no Windows wheels and are skipped automatically. Dockerfile indexing still works via line-based parsing. Dart files use regex fallback.
 
 ### 2. Configure Ollama Cloud (for chat)
 

@@ -10,8 +10,16 @@ import tree_sitter_go
 import tree_sitter_java
 import tree_sitter_rust
 import tree_sitter_c_sharp
-import tree_sitter_dart
-import tree_sitter_dockerfile
+
+try:
+    import tree_sitter_dart
+except ImportError:
+    tree_sitter_dart = None  # optional on Windows (no wheel)
+
+try:
+    import tree_sitter_dockerfile
+except ImportError:
+    tree_sitter_dockerfile = None  # optional on Windows (no wheel)
 
 from server.indexer.walker import detect_language
 
@@ -28,9 +36,11 @@ def _get_language(name: str) -> Language | None:
             "java": tree_sitter_java.language,
             "rust": tree_sitter_rust.language,
             "csharp": tree_sitter_c_sharp.language,
-            "dart": tree_sitter_dart.language,
-            "dockerfile": tree_sitter_dockerfile.language,
         }
+        if tree_sitter_dart is not None:
+            loaders["dart"] = tree_sitter_dart.language
+        if tree_sitter_dockerfile is not None:
+            loaders["dockerfile"] = tree_sitter_dockerfile.language
         fn = loaders.get(name)
         if fn:
             _LANGUAGES[name] = Language(fn())
@@ -455,6 +465,10 @@ def parse_file(path: Path) -> ParseResult:
 
     if not source:
         return ParseResult()
+
+    # Dockerfile parsing is line-based; works without tree-sitter-dockerfile (e.g. on Windows)
+    if language == "dockerfile":
+        return parse_dockerfile(source, None)
 
     parser = _lang_parser(language)
     if parser:

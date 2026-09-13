@@ -10,8 +10,8 @@ tree-sitter-go>=0.23.0
 tree-sitter-java>=0.23.0
 tree-sitter-rust>=0.23.0
 tree-sitter-c-sharp>=0.23.0
-tree-sitter-dart>=0.1.0
-tree-sitter-dockerfile>=0.1.0
+tree-sitter-dart>=0.1.0; platform_system != "Windows"
+tree-sitter-dockerfile>=0.1.0; platform_system != "Windows"
 pyyaml>=6.0
 ollama>=0.4.0
 python-multipart>=0.0.12
