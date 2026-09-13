@@ -537,6 +537,92 @@ a { color: var(--accent-2); text-decoration: none; }
 }
 .docs-empty-hint { margin-top: 8px; line-height: 1.6; font-size: 14px; }
 .docs-streaming { min-height: 200px; }
+.docs-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10, 15, 30, 0.4);
+}
+.docs-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.docs-control select,
+.docs-control input[type="text"] {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0d1428;
+  color: var(--text);
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: normal;
+  min-width: 180px;
+}
+.docs-export-path { flex: 1; min-width: 280px; }
+.docs-export-row { display: flex; gap: 8px; }
+.docs-export-row input { flex: 1; }
+.btn-text-danger {
+  background: none;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 8px 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.docs-upload-panel {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.6);
+}
+.docs-upload-panel h4 { margin: 0 0 6px; }
+.docs-upload-hint { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.docs-upload-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.docs-upload-fields label,
+.docs-upload-content-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.docs-upload-fields input,
+.docs-upload-content-label textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0d1428;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+.docs-upload-content-label textarea {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  resize: vertical;
+}
+.docs-upload-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.docs-exported-at { color: #6ee7b7; }
 
 @media (max-width: 900px) {
   .explorer-layout { grid-template-columns: 1fr; }

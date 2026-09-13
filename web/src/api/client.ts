@@ -129,10 +129,36 @@ export const api = {
     request<DiagramData>(`/api/projects/${id}/diagrams/l3${route ? `?route=${encodeURIComponent(route)}` : ""}`),
   getArchitecture: (id: string) => request<Record<string, unknown>>(`/api/projects/${id}/architecture`),
   getDocumentation: (id: string) =>
-    request<{ content: string; generated_at?: string; template?: string; model?: string }>(
-      `/api/projects/${id}/documentation`
+    request<{
+      content: string;
+      generated_at?: string;
+      template?: string;
+      model?: string;
+      exported_path?: string;
+    }>(`/api/projects/${id}/documentation`),
+  getDocTemplates: () =>
+    request<{ id: string; name: string; filename: string; source: "builtin" | "custom" }[]>(
+      "/api/documentation/templates"
     ),
-  getDocTemplates: () => request<{ id: string; name: string; filename: string }[]>("/api/documentation/templates"),
+  getDocTemplate: (id: string) =>
+    request<{ id: string; name: string; content: string; source: string }>(`/api/documentation/templates/${id}`),
+  uploadDocTemplate: (id: string, content: string, name?: string) =>
+    request<{ id: string; name: string; source: string }>("/api/documentation/templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, content, name }),
+    }),
+  deleteDocTemplate: (id: string) =>
+    request<{ deleted: string }>(`/api/documentation/templates/${id}`, { method: "DELETE" }),
+  exportDocumentation: (projectId: string, path = "DOCUMENTATION.md") =>
+    request<{ path: string; relative_path: string; bytes: number }>(
+      `/api/projects/${projectId}/documentation/export`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      }
+    ),
 };
 
 export async function streamDocumentation(

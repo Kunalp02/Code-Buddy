@@ -21,7 +21,17 @@ from server.graph.queries import (
     read_snippet,
     search_symbols,
 )
-from server.docs.generator import documentation_stream, generate_documentation_sync, list_templates, load_documentation
+from server.docs.generator import (
+    DEFAULT_EXPORT_PATH,
+    delete_custom_template,
+    documentation_stream,
+    export_documentation_to_project,
+    generate_documentation_sync,
+    get_template_detail,
+    list_templates,
+    load_documentation,
+    save_custom_template,
+)
 from server.indexer.engine import create_project, get_progress
 
 app = FastAPI(title="Code-Buddy", version="0.1.0")
@@ -48,6 +58,16 @@ class ChatRequest(BaseModel):
 class GenerateDocsRequest(BaseModel):
     template: str = "default"
     model: str | None = None
+
+
+class UploadTemplateRequest(BaseModel):
+    id: str = Field(..., description="Template id (lowercase, hyphens)")
+    content: str = Field(..., description="Markdown template content")
+    name: str | None = Field(None, description="Display name")
+
+
+class ExportDocsRequest(BaseModel):
+    path: str = Field(DEFAULT_EXPORT_PATH, description="Relative path inside project root")
 
 
 @app.get("/api/health")
@@ -158,6 +178,33 @@ def api_doc_templates():
     return list_templates()
 
 
+@app.get("/api/documentation/templates/{template_id}")
+def api_get_doc_template(template_id: str):
+    try:
+        return get_template_detail(template_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/documentation/templates")
+def api_upload_doc_template(body: UploadTemplateRequest):
+    try:
+        return save_custom_template(body.id, body.content, body.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/api/documentation/templates/{template_id}")
+def api_delete_doc_template(template_id: str):
+    try:
+        delete_custom_template(template_id)
+        return {"deleted": template_id}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/projects/{project_id}/documentation")
 def api_get_documentation(project_id: str):
     _require_project(project_id)
@@ -175,6 +222,15 @@ def api_generate_documentation_sync(project_id: str, body: GenerateDocsRequest):
         return load_documentation(project_id) or {"content": content}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/projects/{project_id}/documentation/export")
+def api_export_documentation(project_id: str, body: ExportDocsRequest):
+    _require_project(project_id)
+    try:
+        return export_documentation_to_project(project_id, body.path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/projects/{project_id}/documentation/stream")

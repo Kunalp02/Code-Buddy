@@ -68,6 +68,8 @@ server/       FastAPI backend
 - `POST /api/projects/{id}/chat` — streaming agent (NDJSON)
 - `POST /api/projects/{id}/documentation/stream` — generate project docs (NDJSON stream)
 - `GET /api/projects/{id}/documentation` — retrieve last generated documentation
+- `POST /api/documentation/templates` — upload a custom documentation template
+- `POST /api/projects/{id}/documentation/export` — save generated docs into the project repo
 
 ## Notes
 

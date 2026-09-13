@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -9,6 +10,9 @@ from server.docs.context import compact_context_for_prompt, gather_documentation
 from server.graph.queries import get_project
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+CUSTOM_TEMPLATES_DIR = settings.data_dir / "custom-templates"
+TEMPLATE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$|^[a-z0-9]$")
+DEFAULT_EXPORT_PATH = "DOCUMENTATION.md"
 
 DOC_SYSTEM_PROMPT = """You are a senior technical writer generating professional project documentation.
 
@@ -26,22 +30,131 @@ Rules:
 """
 
 
+def _normalize_template_id(template_id: str) -> str:
+    tid = template_id.strip().lower().replace("_", "-").replace(" ", "-")
+    tid = re.sub(r"[^a-z0-9-]", "", tid)
+    if not tid or not TEMPLATE_ID_RE.match(tid):
+        raise ValueError("Template id must be 1-50 lowercase letters, numbers, or hyphens")
+    return tid
+
+
+def _template_path(template_id: str) -> Path | None:
+    custom = CUSTOM_TEMPLATES_DIR / f"{template_id}.md"
+    if custom.exists():
+        return custom
+    builtin = TEMPLATES_DIR / f"{template_id}.md"
+    if builtin.exists():
+        return builtin
+    return None
+
+
 def list_templates() -> list[dict[str, str]]:
-    templates = []
-    if not TEMPLATES_DIR.exists():
-        return templates
-    for path in sorted(TEMPLATES_DIR.glob("*.md")):
-        templates.append({"id": path.stem, "name": path.stem.replace("-", " ").title(), "filename": path.name})
+    templates: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    for directory, source in ((TEMPLATES_DIR, "builtin"), (CUSTOM_TEMPLATES_DIR, "custom")):
+        if not directory.exists():
+            continue
+        for path in sorted(directory.glob("*.md")):
+            tid = path.stem
+            if tid in seen:
+                continue
+            seen.add(tid)
+            display_name = path.stem.replace("-", " ").title()
+            if source == "custom":
+                meta_file = directory / f"{tid}.json"
+                if meta_file.exists():
+                    try:
+                        display_name = json.loads(meta_file.read_text()).get("name", display_name)
+                    except Exception:
+                        pass
+            templates.append(
+                {
+                    "id": tid,
+                    "name": display_name,
+                    "filename": path.name,
+                    "source": source,
+                }
+            )
     return templates
 
 
 def get_template(template_id: str = "default") -> str:
-    path = TEMPLATES_DIR / f"{template_id}.md"
-    if not path.exists():
+    path = _template_path(template_id)
+    if not path:
         path = TEMPLATES_DIR / "default.md"
     if not path.exists():
         raise FileNotFoundError("Documentation template not found")
     return path.read_text(encoding="utf-8")
+
+
+def get_template_detail(template_id: str) -> dict[str, Any]:
+    path = _template_path(template_id)
+    if not path:
+        raise FileNotFoundError(f"Template not found: {template_id}")
+    source = "custom" if path.parent == CUSTOM_TEMPLATES_DIR else "builtin"
+    return {
+        "id": template_id,
+        "name": template_id.replace("-", " ").title(),
+        "filename": path.name,
+        "source": source,
+        "content": path.read_text(encoding="utf-8"),
+    }
+
+
+def save_custom_template(template_id: str, content: str, name: str | None = None) -> dict[str, str]:
+    tid = _normalize_template_id(template_id)
+    if not content.strip():
+        raise ValueError("Template content cannot be empty")
+    if len(content) > 100_000:
+        raise ValueError("Template too large (max 100KB)")
+
+    CUSTOM_TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+    path = CUSTOM_TEMPLATES_DIR / f"{tid}.md"
+    path.write_text(content, encoding="utf-8")
+
+    meta_path = CUSTOM_TEMPLATES_DIR / f"{tid}.json"
+    meta_path.write_text(
+        json.dumps({"name": name or tid.replace("-", " ").title(), "created_at": datetime.now(timezone.utc).isoformat()}),
+        encoding="utf-8",
+    )
+    return {"id": tid, "name": name or tid.replace("-", " ").title(), "source": "custom"}
+
+
+def delete_custom_template(template_id: str) -> None:
+    tid = _normalize_template_id(template_id)
+    path = CUSTOM_TEMPLATES_DIR / f"{tid}.md"
+    if not path.exists():
+        raise FileNotFoundError(f"Custom template not found: {tid}")
+    path.unlink()
+    meta = CUSTOM_TEMPLATES_DIR / f"{tid}.json"
+    if meta.exists():
+        meta.unlink()
+
+
+def export_documentation_to_project(project_id: str, relative_path: str = DEFAULT_EXPORT_PATH) -> dict[str, str]:
+    meta = get_project(project_id)
+    if not meta:
+        raise ValueError("Project not found")
+
+    doc = load_documentation(project_id)
+    if not doc or not doc.get("content"):
+        raise ValueError("No documentation generated yet — generate documentation first")
+
+    rel = relative_path.strip().lstrip("/")
+    if not rel or ".." in rel.split("/"):
+        raise ValueError("Invalid export path")
+
+    root = Path(meta["path"]).resolve()
+    target = (root / rel).resolve()
+    if not str(target).startswith(str(root)):
+        raise ValueError("Export path must be inside the project directory")
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(doc["content"], encoding="utf-8")
+    record_export(project_id, rel)
+
+    return {"path": str(target), "relative_path": rel, "bytes": len(doc["content"])}
 
 
 def documentation_path(project_id: str) -> Path:
@@ -65,6 +178,7 @@ def load_documentation(project_id: str) -> dict[str, Any] | None:
         "generated_at": meta.get("generated_at"),
         "template": meta.get("template", "default"),
         "model": meta.get("model"),
+        "exported_path": meta.get("exported_path"),
     }
 
 
@@ -73,9 +187,15 @@ def save_documentation(project_id: str, content: str, template: str, model: str)
     meta_path = documentation_meta_path(project_id)
     doc_path.parent.mkdir(parents=True, exist_ok=True)
     doc_path.write_text(content, encoding="utf-8")
+
+    existing_meta: dict[str, Any] = {}
+    if meta_path.exists():
+        existing_meta = json.loads(meta_path.read_text())
+
     meta_path.write_text(
         json.dumps(
             {
+                **existing_meta,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "template": template,
                 "model": model,
@@ -84,6 +204,16 @@ def save_documentation(project_id: str, content: str, template: str, model: str)
         ),
         encoding="utf-8",
     )
+
+
+def record_export(project_id: str, relative_path: str) -> None:
+    meta_path = documentation_meta_path(project_id)
+    existing: dict[str, Any] = {}
+    if meta_path.exists():
+        existing = json.loads(meta_path.read_text())
+    existing["exported_path"] = relative_path
+    existing["exported_at"] = datetime.now(timezone.utc).isoformat()
+    meta_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
 
 def _build_user_prompt(template: str, context_json: str) -> str:
