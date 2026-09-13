@@ -24,6 +24,8 @@ const LAYER_ICONS: Record<string, string> = {
   external: "◎",
   route: "⇢",
   function: "ƒ",
+  container: "🐳",
+  proxy: "⇄",
 };
 
 type NodeData = {

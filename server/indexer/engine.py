@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from server.db import get_db, init_schema, save_meta
+from server.indexer.docker_scanner import scan_docker
 from server.indexer.infra_scanner import scan_infrastructure
 from server.indexer.parser import parse_file
 from server.indexer.walker import module_key, walk_project
@@ -143,9 +144,12 @@ def index_project(project_id: str, root_path: Path) -> dict:
                     (from_id, to_id, weight),
                 )
 
-            progress.message = "Scanning infrastructure (databases, caches, queues)…"
+            progress.message = "Scanning infrastructure (databases, caches, queues, Docker)…"
             infra = scan_infrastructure(root_path, files)
-            for comp in infra.components:
+            docker = scan_docker(root_path)
+            merged_components = _merge_components(infra.components, docker.components)
+            merged_connections = infra.connections + docker.connections
+            for comp in merged_components:
                 conn.execute(
                     """
                     INSERT INTO components (id, name, component_type, technology, evidence_file, evidence_line, detail)
@@ -161,7 +165,7 @@ def index_project(project_id: str, root_path: Path) -> dict:
                         comp.detail,
                     ),
                 )
-            for edge in infra.connections:
+            for edge in merged_connections:
                 conn.execute(
                     """
                     INSERT INTO component_connections
@@ -211,6 +215,14 @@ def index_project(project_id: str, root_path: Path) -> dict:
         _progress[project_id] = progress
 
 
+def _merge_components(primary: list, secondary: list) -> list:
+    by_id: dict[str, object] = {c.id: c for c in primary}
+    for comp in secondary:
+        if comp.id not in by_id:
+            by_id[comp.id] = comp
+    return list(by_id.values())
+
+
 def _import_to_module(source: str, known_modules: set[str]) -> str | None:
     source = source.strip().strip("'\"")
     if not source or source.startswith("@") or source in {"os", "sys", "json", "re", "typing", "pathlib", "datetime", "collections", "dataclasses", "asyncio", "uuid", "math", "sqlite3", "contextlib"}:
@@ -241,7 +253,13 @@ def _detect_framework(languages: Counter[str], root: Path) -> str | None:
         "requirements.txt": "python",
         "go.mod": "go",
         "Cargo.toml": "rust",
+        "pom.xml": "java",
+        "build.gradle": "java",
+        "build.gradle.kts": "kotlin",
+        "pubspec.yaml": "flutter",
     }
+    if any(root.glob("*.csproj")):
+        return "dotnet"
     for marker, fw in markers.items():
         if (root / marker).exists():
             if marker == "package.json":

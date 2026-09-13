@@ -5,9 +5,9 @@ Local-first codebase intelligence: point at a project folder, get a searchable c
 ## What it does
 
 1. **Load** a local project path
-2. **Index** files with Tree-sitter (symbols, imports, routes, modules)
+2. **Index** files with Tree-sitter (symbols, imports, routes, modules) — Python, JavaScript/TypeScript, Go, Java, Rust, C#, Dart, Docker
 3. **Explore** the codebase with search, file tree, and symbol navigation
-4. **Visualize** L1 module maps and L3 route flows
+4. **Visualize** system architecture (DB, cache, Docker), module maps, and route flows
 5. **Chat** with a graph-first agent that cites evidence (`path:line`)
 
 ## Quick start

@@ -21,6 +21,7 @@ LANGUAGE_MAP = {
     ".swift": "swift",
     ".kt": "kotlin",
     ".scala": "scala",
+    ".dart": "dart",
     ".sql": "sql",
     ".sh": "shell",
     ".yaml": "yaml",
@@ -33,8 +34,20 @@ LANGUAGE_MAP = {
     ".vue": "vue",
 }
 
+COMPOSE_FILENAMES = {
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "compose.yml",
+    "compose.yaml",
+}
+
 
 def detect_language(path: Path) -> str | None:
+    name_lower = path.name.lower()
+    if name_lower == "dockerfile" or name_lower.startswith("dockerfile."):
+        return "dockerfile"
+    if name_lower in COMPOSE_FILENAMES:
+        return "compose"
     return LANGUAGE_MAP.get(path.suffix.lower())
 
 
@@ -45,6 +58,10 @@ def should_skip_dir(name: str) -> bool:
 def should_skip_file(path: Path) -> bool:
     if path.suffix.lower() in settings.skip_extensions:
         return True
+    if path.name.lower() in COMPOSE_FILENAMES:
+        return False
+    if path.name.lower() == "dockerfile" or path.name.lower().startswith("dockerfile."):
+        return False
     if path.name.startswith(".") and path.suffix not in {".env"}:
         return True
     return False
@@ -75,7 +92,10 @@ def module_key(root: Path, file_path: Path) -> str:
     parts = rel.parts
     if len(parts) <= 1:
         return "root"
-    top_level_packages = {"src", "app", "lib", "pkg", "internal", "server", "web", "apps", "packages"}
+    top_level_packages = {
+        "src", "app", "lib", "pkg", "internal", "server", "web", "apps", "packages",
+        "java", "csharp", "rust", "dart", "flutter",
+    }
     if len(parts) >= 3 and parts[0] in top_level_packages:
         return "/".join(parts[:2])
     if len(parts) >= 2:

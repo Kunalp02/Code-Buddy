@@ -62,6 +62,8 @@ LAYER_COLORS = {
     "search": "#14b8a6",
     "orm": "#6366f1",
     "auth": "#f59e0b",
+    "container": "#4f46e5",
+    "proxy": "#64748b",
 }
 
 SYSTEM_LAYER_ORDER = {
@@ -76,6 +78,8 @@ SYSTEM_LAYER_ORDER = {
     "queue": 4,
     "storage": 4,
     "search": 4,
+    "container": 2,
+    "proxy": 1,
 }
 
 SYSTEM_LAYER_LABELS = {
@@ -89,6 +93,8 @@ SYSTEM_LAYER_LABELS = {
     "queue": "Message Queues",
     "storage": "Object Storage",
     "search": "Search / Analytics",
+    "container": "Containers",
+    "proxy": "Reverse Proxy",
 }
 
 
