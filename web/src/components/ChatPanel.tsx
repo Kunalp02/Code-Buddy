@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { EvidenceItem, streamChat } from "../api/client";
+import MarkdownMessage from "./MarkdownMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -11,6 +12,7 @@ interface Message {
 interface Props {
   projectId: string;
   onEvidenceClick: (item: EvidenceItem) => void;
+  onCodeRefClick?: (path: string, line?: number) => void;
 }
 
 const SUGGESTIONS = [
@@ -20,7 +22,7 @@ const SUGGESTIONS = [
   "Show me the API routes.",
 ];
 
-export default function ChatPanel({ projectId, onEvidenceClick }: Props) {
+export default function ChatPanel({ projectId, onEvidenceClick, onCodeRefClick }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export default function ChatPanel({ projectId, onEvidenceClick }: Props) {
         {messages.length === 0 && (
           <div className="chat-empty">
             <h3>Ask the codebase</h3>
-            <p>Agent uses graph tools first, then reads small code snippets. Every answer should cite evidence.</p>
+            <p>Agent uses graph tools first, then reads small code snippets. Answers render as formatted markdown.</p>
             <div className="suggestions">
               {SUGGESTIONS.map((s) => (
                 <button key={s} onClick={() => sendMessage(s)} disabled={loading}>{s}</button>
@@ -111,7 +113,13 @@ export default function ChatPanel({ projectId, onEvidenceClick }: Props) {
         )}
         {messages.map((m, i) => (
           <div key={i} className={`chat-message ${m.role}`}>
-            <div className="chat-bubble">{m.content}</div>
+            <div className="chat-bubble">
+              {m.role === "assistant" ? (
+                <MarkdownMessage content={m.content} onCodeRefClick={onCodeRefClick} />
+              ) : (
+                m.content
+              )}
+            </div>
             {m.role === "assistant" && m.evidence && m.evidence.length > 0 && (
               <div className="evidence-panel">
                 <div className="evidence-title">Evidence ({m.toolCalls ?? 0} tool calls)</div>

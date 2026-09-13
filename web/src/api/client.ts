@@ -25,6 +25,15 @@ export interface DiagramNode {
   line?: number;
   start_line?: number;
   file_count?: number;
+  symbol_count?: number;
+  route_count?: number;
+  fan_in?: number;
+  fan_out?: number;
+  hub_score?: number;
+  is_hub?: boolean;
+  layer?: string;
+  color?: string;
+  description?: string;
   position: { x: number; y: number };
 }
 
@@ -34,12 +43,30 @@ export interface DiagramEdge {
   target: string;
   label?: string;
   weight?: number;
+  edge_type?: string;
+}
+
+export interface DiagramCluster {
+  id: string;
+  label: string;
+  layer: string;
+  color: string;
+  modules: string[];
+}
+
+export interface DiagramLegendItem {
+  layer: string;
+  label: string;
+  color: string;
 }
 
 export interface DiagramData {
   level: string;
+  layout?: string;
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  clusters?: DiagramCluster[];
+  legend?: DiagramLegendItem[];
   summary: string;
 }
 

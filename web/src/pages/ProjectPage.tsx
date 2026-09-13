@@ -100,7 +100,13 @@ export default function ProjectPage() {
             <CodeViewer projectId={id} filePath={selectedFile} startLine={selectedLine} />
           </div>
         )}
-        {tab === "chat" && <ChatPanel projectId={id} onEvidenceClick={onEvidenceClick} />}
+        {tab === "chat" && (
+          <ChatPanel
+            projectId={id}
+            onEvidenceClick={onEvidenceClick}
+            onCodeRefClick={(path, line) => openFile(path, line || 1)}
+          />
+        )}
       </div>
     </div>
   );

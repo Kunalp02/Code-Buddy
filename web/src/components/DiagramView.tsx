@@ -1,6 +1,7 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Background,
+  BackgroundVariant,
   Controls,
   Edge,
   MarkerType,
@@ -11,8 +12,9 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import dagre from "dagre";
 import { api, DiagramData, DiagramNode } from "../api/client";
+import ArchitectureNode from "./diagram/ArchitectureNode";
+import DiagramInspector from "./diagram/DiagramInspector";
 
 interface Props {
   projectId: string;
@@ -21,85 +23,151 @@ interface Props {
   onNodeClick: (node: DiagramNode) => void;
 }
 
-const NODE_WIDTH = 180;
-const NODE_HEIGHT = 64;
+const nodeTypes = { architecture: ArchitectureNode };
 
-function layoutDiagram(diagram: DiagramData) {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 100 });
+const LAYER_RANK: Record<string, number> = {
+  system: 0,
+  external: 0,
+  presentation: 1,
+  api: 2,
+  route: 2,
+  security: 2,
+  core: 3,
+  domain: 3,
+  function: 4,
+  shared: 4,
+  module: 4,
+  data: 5,
+  config: 6,
+  test: 7,
+};
 
+const NODE_W = 220;
+const COL_GAP = 48;
+const ROW_GAP = 140;
+
+function layoutLayered(diagram: DiagramData): { nodes: Node[]; edges: Edge[] } {
+  const byLayer = new Map<string, DiagramNode[]>();
   for (const node of diagram.nodes) {
-    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    const layer = node.layer || node.type || "module";
+    if (!byLayer.has(layer)) byLayer.set(layer, []);
+    byLayer.get(layer)!.push(node);
   }
-  for (const edge of diagram.edges) {
-    g.setEdge(edge.source, edge.target);
-  }
-  dagre.layout(g);
 
-  const nodes: Node[] = diagram.nodes.map((n) => {
-    const pos = g.node(n.id);
-    const x = pos ? pos.x - NODE_WIDTH / 2 : n.position.x;
-    const y = pos ? pos.y - NODE_HEIGHT / 2 : n.position.y;
+  const layers = [...byLayer.keys()].sort(
+    (a, b) => (LAYER_RANK[a] ?? 4) - (LAYER_RANK[b] ?? 4)
+  );
+
+  const flowNodes: Node[] = [];
+  layers.forEach((layer, rowIdx) => {
+    const row = byLayer.get(layer)!;
+    const rowWidth = row.length * NODE_W + (row.length - 1) * COL_GAP;
+    const startX = -rowWidth / 2 + NODE_W / 2;
+
+    row.forEach((n, colIdx) => {
+      flowNodes.push({
+        id: n.id,
+        type: "architecture",
+        position: {
+          x: startX + colIdx * (NODE_W + COL_GAP),
+          y: rowIdx * ROW_GAP,
+        },
+        data: { node: n },
+      });
+    });
+  });
+
+  const maxWeight = Math.max(...diagram.edges.map((e) => e.weight || 1), 1);
+
+  const flowEdges: Edge[] = diagram.edges.map((e) => {
+    const weight = e.weight || 1;
+    const strokeWidth = 1.5 + (weight / maxWeight) * 3;
+    const isFlow = e.edge_type === "flow" || diagram.layout === "flow";
+    const isSystem = e.edge_type === "system";
+
     return {
-      id: n.id,
-      position: { x, y },
-      data: { label: `${n.label}\n${n.file_count ?? 0} files`, node: n },
-      style: {
-        width: NODE_WIDTH,
-        borderRadius: 12,
-        border: "1px solid rgba(99, 102, 241, 0.35)",
-        background: n.type === "external" ? "#1e293b" : "#111827",
-        color: "#f8fafc",
-        fontSize: 12,
-        fontWeight: 600,
-        padding: 10,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      label: e.label,
+      type: isFlow ? "smoothstep" : "default",
+      animated: isFlow || weight >= 2,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: isSystem ? "rgba(148,163,184,0.6)" : "#818cf8",
+        width: 18,
+        height: 18,
       },
+      style: {
+        stroke: isSystem ? "rgba(148,163,184,0.45)" : `rgba(129, 140, 248, ${0.4 + weight / maxWeight * 0.6})`,
+        strokeWidth,
+        strokeDasharray: isSystem ? "6 4" : undefined,
+      },
+      labelStyle: { fill: "#94a3b8", fontSize: 10, fontWeight: 500 },
+      labelBgStyle: { fill: "rgba(15,23,42,0.85)", fillOpacity: 0.9 },
+      labelBgPadding: [6, 4] as [number, number],
+      labelBgBorderRadius: 4,
     };
   });
 
-  const edges: Edge[] = diagram.edges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    label: e.label,
-    animated: true,
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#818cf8" },
-    style: { stroke: "#818cf8", strokeWidth: 2 },
-    labelStyle: { fill: "#cbd5e1", fontSize: 10 },
-  }));
-
-  return { nodes, edges };
+  return { nodes: flowNodes, edges: flowEdges };
 }
 
 export default function DiagramView({ projectId, diagram, onRefresh, onNodeClick }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [selected, setSelected] = useState<DiagramNode | null>(null);
+  const [viewMode, setViewMode] = useState<"architecture" | "flow">("architecture");
+  const [currentDiagram, setCurrentDiagram] = useState<DiagramData | null>(diagram);
+  const [routes, setRoutes] = useState<{ method: string; path: string }[]>([]);
+  const [selectedRoute, setSelectedRoute] = useState<string>("");
 
   useEffect(() => {
-    if (!diagram) return;
-    const laid = layoutDiagram(diagram);
+    setCurrentDiagram(diagram);
+    if (diagram) applyDiagram(diagram);
+  }, [diagram]);
+
+  useEffect(() => {
+    api.getRoutes(projectId).then((r) => {
+      setRoutes(r.map((x) => ({ method: x.method || "GET", path: x.path })));
+      if (r[0]) setSelectedRoute(r[0].path);
+    }).catch(() => setRoutes([]));
+  }, [projectId]);
+
+  function applyDiagram(d: DiagramData) {
+    const laid = layoutLayered(d);
     setNodes(laid.nodes);
     setEdges(laid.edges);
-  }, [diagram, setNodes, setEdges]);
+    setCurrentDiagram(d);
+  }
+
+  const legend = useMemo(() => currentDiagram?.legend || [], [currentDiagram]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       const data = node.data as { node?: DiagramNode };
-      if (data.node) onNodeClick(data.node);
+      if (data.node) {
+        setSelected(data.node);
+        if (data.node.file_path || data.node.path) onNodeClick(data.node);
+      }
     },
     [onNodeClick]
   );
 
-  async function loadL3() {
-    const d = await api.getL3Diagram(projectId);
-    const laid = layoutDiagram(d);
-    setNodes(laid.nodes);
-    setEdges(laid.edges);
+  async function loadFlow(route?: string) {
+    const d = await api.getL3Diagram(projectId, route || selectedRoute);
+    applyDiagram(d);
+    setViewMode("flow");
   }
 
-  if (!diagram) {
+  async function loadArchitecture() {
+    const d = await api.getL1Diagram(projectId);
+    applyDiagram(d);
+    setViewMode("architecture");
+    onRefresh();
+  }
+
+  if (!currentDiagram) {
     return <div className="diagram-view loading-state">Loading diagram…</div>;
   }
 
@@ -107,29 +175,90 @@ export default function DiagramView({ projectId, diagram, onRefresh, onNodeClick
     <div className="diagram-view">
       <div className="diagram-toolbar">
         <div>
-          <h3>{diagram.level} Architecture Map</h3>
-          <p>{diagram.summary}</p>
+          <h3>
+            {viewMode === "architecture" ? "Auto Architecture Map" : "Request Flow"}
+            <span className="diagram-level">{currentDiagram.level}</span>
+          </h3>
+          <p>{currentDiagram.summary}</p>
         </div>
         <div className="diagram-actions">
-          <button onClick={onRefresh}>Refresh L1</button>
-          <button onClick={loadL3}>Show Route Flow (L3)</button>
+          <button className={viewMode === "architecture" ? "active" : ""} onClick={loadArchitecture}>
+            Architecture
+          </button>
+          {routes.length > 0 && (
+            <>
+              <select
+                value={selectedRoute}
+                onChange={(e) => setSelectedRoute(e.target.value)}
+                className="route-select"
+              >
+                {routes.map((r) => (
+                  <option key={r.path} value={r.path}>{r.method} {r.path}</option>
+                ))}
+              </select>
+              <button className={viewMode === "flow" ? "active" : ""} onClick={() => loadFlow()}>
+                Flow View
+              </button>
+            </>
+          )}
         </div>
       </div>
-      <div className="diagram-canvas">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={handleNodeClick}
-          fitView
-          minZoom={0.2}
-          maxZoom={1.5}
-        >
-          <Background color="#334155" gap={20} />
-          <MiniMap nodeColor="#6366f1" maskColor="rgba(15,23,42,0.75)" />
-          <Controls />
-        </ReactFlow>
+
+      {legend.length > 0 && viewMode === "architecture" && (
+        <div className="diagram-legend">
+          {legend.map((item) => (
+            <span key={item.layer} className="legend-item">
+              <span className="legend-dot" style={{ background: item.color }} />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="diagram-body">
+        <div className="diagram-canvas">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={handleNodeClick}
+            onPaneClick={() => setSelected(null)}
+            fitView
+            fitViewOptions={{ padding: 0.3 }}
+            minZoom={0.15}
+            maxZoom={1.8}
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background variant={BackgroundVariant.Dots} color="#334155" gap={20} size={1} />
+            <MiniMap
+              nodeColor={(n) => (n.data as { node?: DiagramNode })?.node?.color || "#6366f1"}
+              maskColor="rgba(11,16,32,0.8)"
+              pannable
+              zoomable
+            />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </div>
+        <DiagramInspector
+          node={selected}
+          onOpenCode={(path, line) => {
+            if (selected) {
+              onNodeClick(selected);
+            } else {
+              onNodeClick({
+                id: path,
+                label: path.split("/").pop() || path,
+                type: "module",
+                path,
+                file_path: path,
+                start_line: line,
+                position: { x: 0, y: 0 },
+              });
+            }
+          }}
+        />
       </div>
     </div>
   );

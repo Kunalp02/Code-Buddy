@@ -1,60 +1,238 @@
-import math
 from typing import Any
 
-from server.graph.queries import get_file_symbols, get_module_deps, get_modules, get_routes
+from server.graph.queries import (
+    get_file_symbols,
+    get_module_deps,
+    get_module_enrichment,
+    get_modules,
+    get_project,
+    get_routes,
+)
+
+LAYER_ORDER = {
+    "presentation": 0,
+    "api": 1,
+    "security": 2,
+    "core": 3,
+    "domain": 3,
+    "shared": 4,
+    "data": 5,
+    "config": 6,
+    "test": 7,
+    "module": 4,
+    "entry": 1,
+}
+
+LAYER_LABELS = {
+    "presentation": "Presentation",
+    "api": "API Layer",
+    "security": "Security",
+    "core": "Core / Domain",
+    "domain": "Core / Domain",
+    "shared": "Shared Utils",
+    "data": "Data Layer",
+    "config": "Configuration",
+    "test": "Tests",
+    "module": "Modules",
+    "entry": "Entry Points",
+}
+
+LAYER_COLORS = {
+    "presentation": "#8b5cf6",
+    "api": "#06b6d4",
+    "security": "#f59e0b",
+    "core": "#6366f1",
+    "domain": "#6366f1",
+    "shared": "#64748b",
+    "data": "#10b981",
+    "config": "#94a3b8",
+    "test": "#475569",
+    "module": "#818cf8",
+    "entry": "#22d3ee",
+    "system": "#e2e8f0",
+    "external": "#334155",
+    "route": "#06b6d4",
+    "function": "#a78bfa",
+}
+
+
+def _classify_layer(path: str, name: str, route_count: int, symbol_count: int) -> str:
+    p = path.lower()
+    n = name.lower()
+
+    if route_count > 0:
+        return "api"
+    if any(x in p for x in ("auth", "security", "middleware", "oauth", "jwt")):
+        return "security"
+    if any(x in p for x in ("api", "routes", "controllers", "handlers", "views", "endpoints", "router")):
+        return "api"
+    if any(x in p for x in ("db", "database", "repository", "repositories", "models", "storage", "migration")):
+        return "data"
+    if any(x in p for x in ("config", "settings", "constants", "env")):
+        return "config"
+    if any(x in p for x in ("test", "tests", "spec", "__tests__", "fixtures")):
+        return "test"
+    if any(x in p for x in ("web", "ui", "frontend", "components", "pages", "src")):
+        return "presentation"
+    if any(x in p for x in ("utils", "helpers", "common", "shared", "lib")):
+        return "shared"
+    if any(x in p for x in ("agent", "service", "core", "domain", "indexer", "graph", "diagram", "server")):
+        return "core"
+    if symbol_count >= 15:
+        return "core"
+    return "module"
+
+
+def _layer_rank(layer: str) -> int:
+    return LAYER_ORDER.get(layer, 4)
+
+
+def _describe_module(path: str, layer: str, file_count: int, symbol_count: int, route_count: int) -> str:
+    parts = [f"{file_count} files", f"{symbol_count} symbols"]
+    if route_count:
+        parts.append(f"{route_count} routes")
+    layer_name = LAYER_LABELS.get(layer, layer.title())
+    return f"{layer_name} · " + " · ".join(parts)
 
 
 def generate_l1_diagram(project_id: str) -> dict[str, Any]:
+    return generate_architecture_diagram(project_id)
+
+
+def generate_architecture_diagram(project_id: str) -> dict[str, Any]:
     modules = get_modules(project_id)
     deps = get_module_deps(project_id)
+    enrichment = get_module_enrichment(project_id)
+    meta = get_project(project_id) or {}
 
     if not modules:
-        return {"nodes": [], "edges": [], "summary": "No modules detected."}
+        return {"level": "L1", "nodes": [], "edges": [], "clusters": [], "summary": "No modules detected."}
 
     node_map = {m["path"]: m for m in modules}
-    nodes = []
-    count = len(modules)
-    radius = max(220, count * 28)
+    nodes: list[dict[str, Any]] = []
+    clusters: dict[str, list[str]] = {}
 
-    for i, mod in enumerate(modules):
-        angle = (2 * math.pi * i) / max(count, 1)
-        x = 400 + radius * math.cos(angle)
-        y = 300 + radius * math.sin(angle)
+    # System context node
+    project_name = meta.get("name", "Application")
+    nodes.append(
+        {
+            "id": "__system__",
+            "type": "system",
+            "label": project_name,
+            "path": "",
+            "layer": "system",
+            "file_count": meta.get("stats", {}).get("files_parsed", 0),
+            "symbol_count": meta.get("stats", {}).get("symbols", 0),
+            "route_count": meta.get("stats", {}).get("routes", 0),
+            "fan_in": 0,
+            "fan_out": len(modules),
+            "hub_score": len(modules),
+            "description": f"{meta.get('framework', 'app')} codebase",
+            "color": LAYER_COLORS["system"],
+            "position": {"x": 0, "y": 0},
+        }
+    )
+
+    top_modules = sorted(modules, key=lambda m: m["file_count"], reverse=True)[:6]
+
+    for mod in modules:
+        extra = enrichment.get(mod["path"], {})
+        symbol_count = extra.get("symbol_count", 0)
+        route_count = extra.get("route_count", 0)
+        fan_in = extra.get("fan_in", 0)
+        fan_out = extra.get("fan_out", 0)
+        layer = _classify_layer(mod["path"], mod["name"], route_count, symbol_count)
+        hub_score = fan_in + fan_out
+
+        clusters.setdefault(layer, []).append(mod["path"])
+
         nodes.append(
             {
                 "id": mod["path"],
                 "type": "module",
                 "label": mod["name"],
                 "path": mod["path"],
+                "layer": layer,
                 "file_count": mod["file_count"],
-                "position": {"x": x, "y": y},
+                "symbol_count": symbol_count,
+                "route_count": route_count,
+                "fan_in": fan_in,
+                "fan_out": fan_out,
+                "hub_score": hub_score,
+                "is_hub": hub_score >= 3,
+                "description": _describe_module(mod["path"], layer, mod["file_count"], symbol_count, route_count),
+                "color": LAYER_COLORS.get(layer, LAYER_COLORS["module"]),
+                "position": {"x": 0, "y": 0},
             }
         )
 
-    edges = []
+    edges: list[dict[str, Any]] = []
+
+    # Connect system to top-level entry modules
+    for mod in top_modules:
+        edges.append(
+            {
+                "id": f"__system__->{mod['path']}",
+                "source": "__system__",
+                "target": mod["path"],
+                "weight": 1,
+                "label": "contains",
+                "edge_type": "system",
+            }
+        )
+
     for dep in deps:
         if dep["from_module"] in node_map and dep["to_module"] in node_map:
+            weight = dep["weight"]
             edges.append(
                 {
                     "id": f"{dep['from_module']}->{dep['to_module']}",
                     "source": dep["from_module"],
                     "target": dep["to_module"],
-                    "weight": dep["weight"],
-                    "label": str(dep["weight"]),
+                    "weight": weight,
+                    "label": str(weight) if weight > 1 else "",
+                    "edge_type": "dependency",
                 }
             )
 
+    cluster_list = [
+        {
+            "id": layer,
+            "label": LAYER_LABELS.get(layer, layer.title()),
+            "layer": layer,
+            "color": LAYER_COLORS.get(layer, LAYER_COLORS["module"]),
+            "modules": paths,
+        }
+        for layer, paths in sorted(clusters.items(), key=lambda x: _layer_rank(x[0]))
+    ]
+
+    hub = max(nodes[1:], key=lambda n: n.get("hub_score", 0), default=None) if len(nodes) > 1 else None
     summary = (
-        f"Architecture map with {len(nodes)} modules and {len(edges)} dependencies. "
-        f"Largest module: {modules[0]['path']} ({modules[0]['file_count']} files)."
+        f"Auto-generated architecture: {len(modules)} modules, {len(edges)} connections across "
+        f"{len(cluster_list)} layers."
     )
-    return {"level": "L1", "nodes": nodes, "edges": edges, "summary": summary}
+    if hub:
+        summary += f" Central hub: {hub['label']} ({hub['path']})."
+
+    return {
+        "level": "L1",
+        "layout": "layered",
+        "nodes": nodes,
+        "edges": edges,
+        "clusters": cluster_list,
+        "summary": summary,
+        "legend": [
+            {"layer": k, "label": v, "color": LAYER_COLORS.get(k, "#818cf8")}
+            for k, v in LAYER_LABELS.items()
+            if k in {c["layer"] for c in cluster_list}
+        ],
+    }
 
 
 def generate_l3_flow(project_id: str, route_path: str | None = None) -> dict[str, Any]:
     routes = get_routes(project_id)
     if not routes:
-        return {"nodes": [], "edges": [], "summary": "No routes detected in this project."}
+        return {"level": "L3", "nodes": [], "edges": [], "clusters": [], "summary": "No routes detected."}
 
     selected = None
     if route_path:
@@ -73,42 +251,70 @@ def generate_l3_flow(project_id: str, route_path: str | None = None) -> dict[str
             "id": "client",
             "type": "external",
             "label": "Client",
-            "position": {"x": 80, "y": 200},
+            "layer": "external",
+            "color": LAYER_COLORS["external"],
+            "description": "External caller",
+            "position": {"x": 0, "y": 0},
         },
         {
             "id": "route",
             "type": "route",
             "label": f"{selected.get('method', 'GET')} {selected['path']}",
+            "layer": "api",
+            "color": LAYER_COLORS["route"],
             "file_path": file_path,
             "line": selected.get("line"),
-            "position": {"x": 280, "y": 200},
+            "description": "HTTP endpoint",
+            "position": {"x": 0, "y": 0},
         },
     ]
-    edges = [{"id": "e1", "source": "client", "target": "route", "label": "request"}]
+    edges = [
+        {
+            "id": "e-client-route",
+            "source": "client",
+            "target": "route",
+            "label": "HTTP",
+            "weight": 1,
+            "edge_type": "flow",
+        }
+    ]
 
-    x = 480
     prev = "route"
-    for i, sym in enumerate(symbols[:4]):
+    for i, sym in enumerate(symbols[:5]):
         node_id = f"sym-{sym['id']}"
+        kind = sym.get("kind", "function")
         nodes.append(
             {
                 "id": node_id,
-                "type": sym["kind"],
+                "type": kind,
                 "label": sym["name"],
+                "layer": "core",
+                "color": LAYER_COLORS.get("function", "#a78bfa"),
                 "file_path": file_path,
                 "start_line": sym["start_line"],
-                "position": {"x": x, "y": 120 + i * 80},
+                "description": f"{kind} in {file_path}",
+                "position": {"x": 0, "y": 0},
             }
         )
-        edges.append({"id": f"e-{i+2}", "source": prev, "target": node_id, "label": "calls"})
+        edges.append(
+            {
+                "id": f"e-flow-{i}",
+                "source": prev,
+                "target": node_id,
+                "label": "calls",
+                "weight": 1,
+                "edge_type": "flow",
+            }
+        )
         prev = node_id
-        x += 180
 
-    summary = f"Flow for {selected.get('method', 'GET')} {selected['path']}"
     return {
         "level": "L3",
+        "layout": "flow",
         "nodes": nodes,
         "edges": edges,
-        "summary": summary,
+        "clusters": [],
+        "summary": f"Request flow: {selected.get('method', 'GET')} {selected['path']}",
         "route": selected,
+        "legend": [],
     }

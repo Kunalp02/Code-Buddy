@@ -122,6 +122,56 @@ def get_module_deps(project_id: str) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def get_module_enrichment(project_id: str) -> dict[str, dict]:
+    """Per-module symbol counts, route counts, and dependency fan-in/out."""
+    with get_db(project_id) as conn:
+        modules = conn.execute("SELECT id, path, name, file_count FROM modules").fetchall()
+        enrichment: dict[str, dict] = {}
+
+        for mod in modules:
+            path = mod["path"]
+            pattern = path if path == "root" else f"{path}/%"
+            exact = path if path != "root" else ""
+
+            symbol_row = conn.execute(
+                """
+                SELECT COUNT(s.id) AS cnt
+                FROM symbols s
+                JOIN files f ON f.id = s.file_id
+                WHERE f.path = ? OR f.path LIKE ?
+                """,
+                (exact or path, pattern),
+            ).fetchone()
+
+            route_row = conn.execute(
+                """
+                SELECT COUNT(r.id) AS cnt
+                FROM routes r
+                JOIN files f ON f.id = r.file_id
+                WHERE f.path = ? OR f.path LIKE ?
+                """,
+                (exact or path, pattern),
+            ).fetchone()
+
+            fan_out = conn.execute(
+                "SELECT COALESCE(SUM(weight), 0) AS w FROM module_deps WHERE from_module_id = ?",
+                (mod["id"],),
+            ).fetchone()
+            fan_in = conn.execute(
+                "SELECT COALESCE(SUM(weight), 0) AS w FROM module_deps WHERE to_module_id = ?",
+                (mod["id"],),
+            ).fetchone()
+
+            enrichment[path] = {
+                "symbol_count": symbol_row["cnt"] if symbol_row else 0,
+                "route_count": route_row["cnt"] if route_row else 0,
+                "fan_in": fan_in["w"] if fan_in else 0,
+                "fan_out": fan_out["w"] if fan_out else 0,
+            }
+
+        return enrichment
+
+
 def get_file_symbols(project_id: str, file_path: str) -> list[dict]:
     with get_db(project_id) as conn:
         rows = conn.execute(

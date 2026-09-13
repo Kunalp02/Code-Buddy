@@ -22,6 +22,13 @@ Rules:
 5. If evidence is insufficient, say so clearly.
 6. Prefer structural answers: modules, routes, symbols, dependencies.
 7. When explaining flows, mention the route and handler files.
+
+Format ALL responses in Markdown:
+- Use ## headings for sections
+- Use bullet lists and tables for routes, modules, symbols
+- Use `inline code` for symbol names
+- Use fenced code blocks for short snippets
+- Use **bold** for key findings
 """
 
 
