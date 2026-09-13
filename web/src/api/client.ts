@@ -150,6 +150,27 @@ export const api = {
     }),
   deleteDocTemplate: (id: string) =>
     request<{ deleted: string }>(`/api/documentation/templates/${id}`, { method: "DELETE" }),
+  buildContextPack: (
+    projectId: string,
+    body: { mode: "project" | "task"; task?: string; size?: string }
+  ) =>
+    request<{
+      mode: string;
+      content: string;
+      char_count: number;
+      estimated_tokens: number;
+      max_chars: number;
+      files_referenced?: string[];
+      keywords?: string[];
+      symbols_found?: number;
+      routes_found?: number;
+      project_name: string;
+      task?: string;
+    }>(`/api/projects/${projectId}/context-pack`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
   exportDocumentation: (projectId: string, path = "DOCUMENTATION.md") =>
     request<{ path: string; relative_path: string; bytes: number }>(
       `/api/projects/${projectId}/documentation/export`,

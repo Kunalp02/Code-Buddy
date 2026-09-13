@@ -624,6 +624,96 @@ a { color: var(--accent-2); text-decoration: none; }
 }
 .docs-exported-at { color: #6ee7b7; }
 
+/* Context pack panel */
+.context-pack-panel { display: flex; flex-direction: column; min-height: 68vh; }
+.context-pack-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10, 15, 30, 0.4);
+}
+.pack-mode-toggle {
+  display: flex;
+  gap: 8px;
+}
+.pack-mode-toggle button {
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pack-mode-toggle button.active {
+  background: rgba(99, 102, 241, 0.18);
+  color: white;
+  border-color: rgba(99, 102, 241, 0.45);
+}
+.context-pack-task-input {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.context-pack-task-input label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.context-pack-task-input textarea {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0d1428;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.context-pack-hint {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.context-pack-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--accent-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.context-pack-preview {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  max-height: calc(68vh - 160px);
+}
+.context-pack-raw {
+  margin: 0;
+  padding: 20px 24px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   .explorer-layout { grid-template-columns: 1fr; }
   .project-header { flex-direction: column; }

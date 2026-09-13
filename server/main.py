@@ -21,6 +21,7 @@ from server.graph.queries import (
     read_snippet,
     search_symbols,
 )
+from server.context_pack.builder import SIZE_PRESETS, build_context_pack
 from server.docs.generator import (
     DEFAULT_EXPORT_PATH,
     delete_custom_template,
@@ -68,6 +69,13 @@ class UploadTemplateRequest(BaseModel):
 
 class ExportDocsRequest(BaseModel):
     path: str = Field(DEFAULT_EXPORT_PATH, description="Relative path inside project root")
+
+
+class ContextPackRequest(BaseModel):
+    mode: str = Field("project", description="'project' for full compact pack, 'task' for task-specific")
+    task: str | None = Field(None, description="Task description (required when mode=task)")
+    size: str = Field("standard", description="compact | standard | large")
+    max_chars: int | None = Field(None, description="Override character budget")
 
 
 @app.get("/api/health")
@@ -222,6 +230,26 @@ def api_generate_documentation_sync(project_id: str, body: GenerateDocsRequest):
         return load_documentation(project_id) or {"content": content}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/context-pack/sizes")
+def api_context_pack_sizes():
+    return {"presets": {k: v for k, v in SIZE_PRESETS.items()}}
+
+
+@app.post("/api/projects/{project_id}/context-pack")
+def api_build_context_pack(project_id: str, body: ContextPackRequest):
+    _require_project(project_id)
+    try:
+        return build_context_pack(
+            project_id,
+            mode=body.mode,
+            task=body.task,
+            size=body.size,
+            max_chars=body.max_chars,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/projects/{project_id}/documentation/export")

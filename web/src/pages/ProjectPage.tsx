@@ -4,10 +4,11 @@ import { api, DiagramData, EvidenceItem, ProjectMeta } from "../api/client";
 import ChatPanel from "../components/ChatPanel";
 import CodeViewer from "../components/CodeViewer";
 import DiagramView from "../components/DiagramView";
+import ContextPackPanel from "../components/ContextPackPanel";
 import DocsPanel from "../components/DocsPanel";
 import Explorer from "../components/Explorer";
 
-type Tab = "explorer" | "diagram" | "chat" | "docs";
+type Tab = "explorer" | "diagram" | "chat" | "docs" | "context";
 
 export default function ProjectPage() {
   const { id = "" } = useParams();
@@ -79,6 +80,7 @@ export default function ProjectPage() {
         <button className={tab === "explorer" ? "active" : ""} onClick={() => setTab("explorer")}>Explorer</button>
         <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>Agent Chat</button>
         <button className={tab === "docs" ? "active" : ""} onClick={() => setTab("docs")}>Documentation</button>
+        <button className={tab === "context" ? "active" : ""} onClick={() => setTab("context")}>Context Pack</button>
       </nav>
 
       <div className="project-content">
@@ -115,6 +117,9 @@ export default function ProjectPage() {
             projectName={project.name}
             onCodeRefClick={(path, line) => openFile(path, line || 1)}
           />
+        )}
+        {tab === "context" && (
+          <ContextPackPanel projectId={id} projectName={project.name} />
         )}
       </div>
     </div>

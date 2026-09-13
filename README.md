@@ -10,6 +10,7 @@ Local-first codebase intelligence: point at a project folder, get a searchable c
 4. **Visualize** system architecture (DB, cache, Docker), module maps, and route flows
 5. **Chat** with a graph-first agent that cites evidence (`path:line`)
 6. **Generate** professional project documentation from a customizable template
+7. **Build context packs** — compact paste-ready prompts for Claude/Cursor (whole project or task-specific)
 
 ## Quick start
 
@@ -46,7 +47,7 @@ chmod +x scripts/dev.sh
 1. Open http://localhost:5173
 2. Enter a local project path (e.g. `/home/you/projects/my-app`)
 3. Click **Scan & Index**
-4. Explore **Diagram**, **Explorer**, **Agent Chat**, and **Documentation**
+4. Explore **Diagram**, **Explorer**, **Agent Chat**, **Documentation**, and **Context Pack**
 
 ## Architecture
 
@@ -70,6 +71,7 @@ server/       FastAPI backend
 - `GET /api/projects/{id}/documentation` — retrieve last generated documentation
 - `POST /api/documentation/templates` — upload a custom documentation template
 - `POST /api/projects/{id}/documentation/export` — save generated docs into the project repo
+- `POST /api/projects/{id}/context-pack` — build whole-project or task-specific context pack for AI tools
 
 ## Notes
 
