@@ -80,18 +80,18 @@ export default function ContextPackPanel({ projectId, projectName }: Props) {
         <div className="docs-toolbar-info">
           <h3>Context Pack Builder</h3>
           <p className="docs-subtitle">
-            Build a compact, paste-ready prompt for Claude, Cursor, or any AI assistant — grounded in your indexed codebase.
+            Structured context blocks for your editor or assistant workflow, sourced from the indexed codebase.
           </p>
         </div>
         <div className="docs-actions">
-          <button type="button" className="btn-secondary" onClick={handleDownload} disabled={!result}>
+          <button type="button" className="btn btn-secondary" onClick={handleDownload} disabled={!result}>
             Download
           </button>
-          <button type="button" className="btn-secondary" onClick={handleCopy} disabled={!result}>
-            {copied ? "Copied!" : "Copy to clipboard"}
+          <button type="button" className="btn btn-secondary" onClick={handleCopy} disabled={!result}>
+            {copied ? "Copied" : "Copy"}
           </button>
-          <button type="button" className="btn-primary" onClick={handleBuild} disabled={loading}>
-            {loading ? "Building…" : "Build Context Pack"}
+          <button type="button" className="btn btn-primary" onClick={handleBuild} disabled={loading}>
+            {loading ? "Building…" : "Build pack"}
           </button>
         </div>
       </div>
@@ -140,8 +140,8 @@ export default function ContextPackPanel({ projectId, projectName }: Props) {
 
       {mode === "project" && (
         <div className="context-pack-hint">
-          <strong>Whole project mode</strong> — produces a compact overview: architecture, modules, routes, env vars,
-          folder tree, README/config excerpts, and AI instructions. Ideal for onboarding or first message to Claude.
+          <strong>Whole project</strong> — includes architecture, modules, routes, environment variables, folder tree,
+          and configuration excerpts. Suited for onboarding or handing off project context.
         </div>
       )}
 
@@ -167,9 +167,8 @@ export default function ContextPackPanel({ projectId, projectName }: Props) {
           <div className="docs-empty">
             <p>No context pack yet.</p>
             <p className="docs-empty-hint">
-              Choose <strong>Whole project</strong> for a compact snapshot of the entire codebase, or{" "}
-              <strong>Task-specific</strong> to get relevant files, routes, and patterns for one coding task.
-              Then click <strong>Build Context Pack</strong> and paste into your AI tool.
+              Use <strong>Whole project</strong> for a codebase snapshot, or <strong>Task-specific</strong> to narrow
+              context to one change. Click <strong>Build pack</strong>, then copy or download the result.
             </p>
           </div>
         )}

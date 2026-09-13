@@ -35,6 +35,7 @@ from server.docs.generator import (
     list_templates,
     load_documentation,
     save_custom_template,
+    update_documentation,
 )
 from server.docs.format_export import SUPPORTED_EXPORT_FORMATS, default_filename, export_content
 from server.indexer.engine import create_project, get_progress
@@ -103,6 +104,10 @@ class UploadTemplateRequest(BaseModel):
 class ExportDocsRequest(BaseModel):
     path: str = Field(DEFAULT_EXPORT_PATH, description="Relative path inside project root")
     format: str = Field("md", description="Export format: md, txt, docx, or pdf")
+
+
+class UpdateDocsRequest(BaseModel):
+    content: str = Field(..., description="Updated documentation content (Markdown)")
 
 
 class ContextPackRequest(BaseModel):
@@ -340,6 +345,15 @@ def api_get_documentation(project_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="No documentation generated yet")
     return doc
+
+
+@app.put("/api/projects/{project_id}/documentation")
+def api_update_documentation(project_id: str, body: UpdateDocsRequest):
+    _require_project(project_id)
+    try:
+        return update_documentation(project_id, body.content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/projects/{project_id}/documentation/generate")

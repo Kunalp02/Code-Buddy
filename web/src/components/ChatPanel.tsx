@@ -102,8 +102,8 @@ export default function ChatPanel({ projectId, onEvidenceClick, onCodeRefClick }
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-empty">
-            <h3>Ask the codebase</h3>
-            <p>Agent uses graph tools first, then reads small code snippets. Answers render as formatted markdown.</p>
+            <h3>Codebase search</h3>
+            <p>Queries run against the indexed graph first, with cited file references in each response.</p>
             <div className="suggestions">
               {SUGGESTIONS.map((s) => (
                 <button key={s} onClick={() => sendMessage(s)} disabled={loading}>{s}</button>
@@ -132,7 +132,7 @@ export default function ChatPanel({ projectId, onEvidenceClick, onCodeRefClick }
             )}
           </div>
         ))}
-        {loading && <div className="chat-status">{toolStatus || "Thinking…"}</div>}
+        {loading && <div className="chat-status">{toolStatus || "Working…"}</div>}
       </div>
       <form
         className="chat-input-row"
@@ -147,7 +147,7 @@ export default function ChatPanel({ projectId, onEvidenceClick, onCodeRefClick }
           placeholder="How does this project work?"
           disabled={loading}
         />
-        <button type="submit" disabled={loading || !input.trim()}>Send</button>
+        <button type="submit" className="btn btn-primary" disabled={loading || !input.trim()}>Send</button>
       </form>
     </div>
   );

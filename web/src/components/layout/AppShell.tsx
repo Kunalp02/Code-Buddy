@@ -23,7 +23,7 @@ export default function AppShell({ children }: Props) {
       </header>
       <main className="app-main">{children}</main>
       <footer className="app-footer">
-        <span>Local-first codebase intelligence for your organization</span>
+        <span>Code-Buddy — local-first codebase intelligence</span>
       </footer>
     </div>
   );

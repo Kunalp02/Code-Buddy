@@ -6,9 +6,9 @@ export type ProjectTab = "diagram" | "explorer" | "chat" | "docs" | "context";
 const NAV: { id: ProjectTab; label: string; desc: string }[] = [
   { id: "diagram", label: "Architecture", desc: "System & module diagrams" },
   { id: "explorer", label: "Explorer", desc: "Files, symbols, code" },
-  { id: "chat", label: "Agent Chat", desc: "Graph-backed Q&A" },
-  { id: "docs", label: "Documentation", desc: "Generate project docs" },
-  { id: "context", label: "Context Pack", desc: "AI-ready prompts" },
+  { id: "chat", label: "Search", desc: "Codebase Q&A with citations" },
+  { id: "docs", label: "Documentation", desc: "Reference docs & exports" },
+  { id: "context", label: "Context Pack", desc: "Editor context blocks" },
 ];
 
 interface Props {

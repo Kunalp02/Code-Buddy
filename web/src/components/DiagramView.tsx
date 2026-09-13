@@ -247,10 +247,10 @@ export default function DiagramView({ projectId, diagram, onNodeClick }: Props) 
           <p>{currentDiagram.summary}</p>
         </div>
         <div className="diagram-actions">
-          <button className={viewMode === "system" ? "active" : ""} onClick={loadSystem}>
+          <button type="button" className={`btn btn-secondary btn-sm ${viewMode === "system" ? "active" : ""}`} onClick={loadSystem}>
             System
           </button>
-          <button className={viewMode === "modules" ? "active" : ""} onClick={loadModules}>
+          <button type="button" className={`btn btn-secondary btn-sm ${viewMode === "modules" ? "active" : ""}`} onClick={loadModules}>
             Modules
           </button>
           {routes.length > 0 && (
@@ -264,8 +264,8 @@ export default function DiagramView({ projectId, diagram, onNodeClick }: Props) 
                   <option key={r.path} value={r.path}>{r.method} {r.path}</option>
                 ))}
               </select>
-              <button className={viewMode === "flow" ? "active" : ""} onClick={() => loadFlow()}>
-                Flow View
+              <button type="button" className={`btn btn-secondary btn-sm ${viewMode === "flow" ? "active" : ""}`} onClick={() => loadFlow()}>
+                Request flow
               </button>
             </>
           )}

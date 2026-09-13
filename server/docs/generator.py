@@ -228,10 +228,35 @@ def load_documentation(project_id: str) -> dict[str, Any] | None:
     return {
         "content": doc_path.read_text(encoding="utf-8"),
         "generated_at": meta.get("generated_at"),
+        "edited_at": meta.get("edited_at"),
         "template": meta.get("template", "default"),
         "model": meta.get("model"),
         "exported_path": meta.get("exported_path"),
+        "exported_format": meta.get("exported_format"),
     }
+
+
+def update_documentation(project_id: str, content: str) -> dict[str, Any]:
+    if not get_project(project_id):
+        raise ValueError("Project not found")
+    if not content.strip():
+        raise ValueError("Documentation content cannot be empty")
+
+    existing = load_documentation(project_id)
+    if not existing:
+        raise ValueError("No documentation exists yet — generate documentation first")
+
+    doc_path = documentation_path(project_id)
+    meta_path = documentation_meta_path(project_id)
+    doc_path.write_text(content, encoding="utf-8")
+
+    meta: dict[str, Any] = {}
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text())
+    meta["edited_at"] = datetime.now(timezone.utc).isoformat()
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    return load_documentation(project_id) or {"content": content}
 
 
 def save_documentation(project_id: str, content: str, template: str, model: str) -> None:

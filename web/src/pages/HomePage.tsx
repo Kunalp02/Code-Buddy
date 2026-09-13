@@ -152,16 +152,16 @@ export default function HomePage() {
     <AppShell>
       <div className="home-layout">
         <section className="home-hero">
-          <p className="eyebrow">Enterprise codebase intelligence</p>
-          <h1>Understand, document, and assist across your repositories</h1>
+          <p className="eyebrow">Codebase intelligence</p>
+          <h1>Map, document, and navigate your repositories</h1>
           <p className="hero-lead">
-            Import from a local path, GitHub, or GitLab. Remote repos are read via API — no git clone.
-            Select a repository and branch, then index into a searchable graph.
+            Index a local directory, GitHub repository, or GitLab project. Remote sources are read through the API
+            without cloning. Browse architecture, search the codebase, and export documentation from one workspace.
           </p>
           {health && (
             <div className="status-row">
               <span className={`status-chip ${health.has_api_key ? "ok" : "warn"}`}>
-                {health.has_api_key ? "AI chat ready" : "Set OLLAMA_API_KEY for chat"}
+                {health.has_api_key ? "Chat configured" : "Set OLLAMA_API_KEY to enable chat"}
               </span>
               <span className="status-chip neutral">Model: {health.ollama_model}</span>
             </div>

@@ -194,10 +194,25 @@ export const api = {
     request<{
       content: string;
       generated_at?: string;
+      edited_at?: string;
       template?: string;
       model?: string;
       exported_path?: string;
+      exported_format?: string;
     }>(`/api/projects/${id}/documentation`),
+  updateDocumentation: (projectId: string, content: string) =>
+    request<{
+      content: string;
+      generated_at?: string;
+      edited_at?: string;
+      template?: string;
+      model?: string;
+      exported_path?: string;
+    }>(`/api/projects/${projectId}/documentation`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    }),
   getDocTemplates: () =>
     request<{ id: string; name: string; filename: string; source: "builtin" | "custom" }[]>(
       "/api/documentation/templates"
