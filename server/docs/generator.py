@@ -7,6 +7,14 @@ from typing import Any, AsyncIterator
 from server.agent.orchestrator import _client
 from server.config import settings
 from server.docs.context import compact_context_for_prompt, gather_documentation_context
+from server.docs.diagram_embed import (
+    ARCHITECTURE_ASSET,
+    architecture_asset_path,
+    copy_architecture_asset_for_export,
+    inject_architecture_diagram,
+)
+from server.docs.format_export import SUPPORTED_EXPORT_FORMATS, default_filename, export_content
+from server.docs.template_import import import_template_bytes
 from server.graph.queries import get_project
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
@@ -102,7 +110,13 @@ def get_template_detail(template_id: str) -> dict[str, Any]:
     }
 
 
-def save_custom_template(template_id: str, content: str, name: str | None = None) -> dict[str, str]:
+def save_custom_template(
+    template_id: str,
+    content: str,
+    name: str | None = None,
+    *,
+    source_format: str = "md",
+) -> dict[str, str]:
     tid = _normalize_template_id(template_id)
     if not content.strip():
         raise ValueError("Template content cannot be empty")
@@ -115,10 +129,28 @@ def save_custom_template(template_id: str, content: str, name: str | None = None
 
     meta_path = CUSTOM_TEMPLATES_DIR / f"{tid}.json"
     meta_path.write_text(
-        json.dumps({"name": name or tid.replace("-", " ").title(), "created_at": datetime.now(timezone.utc).isoformat()}),
+        json.dumps(
+            {
+                "name": name or tid.replace("-", " ").title(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "source_format": source_format,
+            }
+        ),
         encoding="utf-8",
     )
-    return {"id": tid, "name": name or tid.replace("-", " ").title(), "source": "custom"}
+    return {
+        "id": tid,
+        "name": name or tid.replace("-", " ").title(),
+        "source": "custom",
+        "format": source_format,
+    }
+
+
+def import_custom_template_file(template_id: str, filename: str, data: bytes, name: str | None = None) -> dict[str, str]:
+    content = import_template_bytes(filename, data)
+    from server.docs.template_import import detect_format
+
+    return save_custom_template(template_id, content, name, source_format=detect_format(filename))
 
 
 def delete_custom_template(template_id: str) -> None:
@@ -132,7 +164,11 @@ def delete_custom_template(template_id: str) -> None:
         meta.unlink()
 
 
-def export_documentation_to_project(project_id: str, relative_path: str = DEFAULT_EXPORT_PATH) -> dict[str, str]:
+def export_documentation_to_project(
+    project_id: str,
+    relative_path: str = DEFAULT_EXPORT_PATH,
+    fmt: str = "md",
+) -> dict[str, str]:
     meta = get_project(project_id)
     if not meta:
         raise ValueError("Project not found")
@@ -141,20 +177,36 @@ def export_documentation_to_project(project_id: str, relative_path: str = DEFAUL
     if not doc or not doc.get("content"):
         raise ValueError("No documentation generated yet — generate documentation first")
 
+    fmt = fmt.lower().lstrip(".")
+    if fmt not in SUPPORTED_EXPORT_FORMATS:
+        raise ValueError(f"Unsupported export format: {fmt}")
+
     rel = relative_path.strip().lstrip("/")
     if not rel or ".." in rel.split("/"):
         raise ValueError("Invalid export path")
 
     root = Path(meta["path"]).resolve()
+    if fmt != "md":
+        rel = default_filename(rel, fmt)
+
     target = (root / rel).resolve()
     if not str(target).startswith(str(root)):
         raise ValueError("Export path must be inside the project directory")
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(doc["content"], encoding="utf-8")
-    record_export(project_id, rel)
 
-    return {"path": str(target), "relative_path": rel, "bytes": len(doc["content"])}
+    export_dir = "docs/assets"
+    content = inject_architecture_diagram(doc["content"], project_id, for_export=True, export_dir=export_dir)
+    assets: dict[str, Path] = {}
+    svg_dest = copy_architecture_asset_for_export(project_id, root, rel)
+    if svg_dest and svg_dest.exists():
+        assets[ARCHITECTURE_ASSET] = svg_dest
+
+    payload, _ = export_content(content, fmt, title=meta.get("name", "Documentation"), assets=assets)
+    target.write_bytes(payload)
+    record_export(project_id, rel, fmt=fmt)
+
+    return {"path": str(target), "relative_path": rel, "bytes": len(payload), "format": fmt}
 
 
 def documentation_path(project_id: str) -> Path:
@@ -206,14 +258,29 @@ def save_documentation(project_id: str, content: str, template: str, model: str)
     )
 
 
-def record_export(project_id: str, relative_path: str) -> None:
+def record_export(project_id: str, relative_path: str, fmt: str = "md") -> None:
     meta_path = documentation_meta_path(project_id)
     existing: dict[str, Any] = {}
     if meta_path.exists():
         existing = json.loads(meta_path.read_text())
     existing["exported_path"] = relative_path
+    existing["exported_format"] = fmt
     existing["exported_at"] = datetime.now(timezone.utc).isoformat()
     meta_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+
+
+def export_template_file(template_id: str, fmt: str = "md") -> tuple[bytes, str, str]:
+    detail = get_template_detail(template_id)
+    fmt = fmt.lower().lstrip(".")
+    if fmt not in SUPPORTED_EXPORT_FORMATS:
+        raise ValueError(f"Unsupported export format: {fmt}")
+    payload, mime = export_content(detail["content"], fmt, title=detail["name"])
+    filename = default_filename(detail["filename"], fmt)
+    return payload, mime, filename
+
+
+def finalize_documentation_content(project_id: str, content: str) -> str:
+    return inject_architecture_diagram(content, project_id, for_export=False)
 
 
 def _build_user_prompt(template: str, context_json: str) -> str:
@@ -253,6 +320,7 @@ def generate_documentation_sync(project_id: str, template_id: str = "default", m
     if not content:
         raise RuntimeError("Documentation generation returned empty content")
 
+    content = finalize_documentation_content(project_id, content)
     save_documentation(project_id, content, template_id, model_name)
     return content
 
@@ -293,6 +361,7 @@ async def documentation_stream(
 
         content = "".join(full_content).strip()
         if content:
+            content = finalize_documentation_content(project_id, content)
             save_documentation(project_id, content, template_id, model_name)
             yield {"type": "saved", "generated_at": datetime.now(timezone.utc).isoformat()}
         yield {"type": "done"}

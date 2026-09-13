@@ -16,3 +16,7 @@ pyyaml>=6.0
 ollama>=0.4.0
 python-multipart>=0.0.12
 aiofiles>=24.1.0
+python-docx>=1.1.0
+pypdf>=5.0.0
+fpdf2>=2.8.0
+cairosvg>=2.7.0

@@ -787,7 +787,9 @@ a:hover { color: var(--primary-hover); }
   border: 1px solid var(--border-strong); background: var(--surface);
 }
 .docs-upload-content-label textarea { font-family: var(--font-mono); font-size: 12px; resize: vertical; }
-.docs-upload-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+.docs-upload-content-label input[type="file"] { font-size: 12px; }
+.docs-upload-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; margin-top: 12px; }
+.markdown-body img { max-width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border); margin: 12px 0; }
 
 .pack-mode-toggle { display: flex; gap: 8px; }
 .pack-mode-toggle button {

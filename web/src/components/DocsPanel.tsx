@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, streamDocumentation } from "../api/client";
+import { api, DocExportFormat, streamDocumentation } from "../api/client";
 import MarkdownMessage from "./MarkdownMessage";
 
 interface DocTemplate {
@@ -15,7 +15,7 @@ interface Props {
   onCodeRefClick?: (path: string, line?: number) => void;
 }
 
-export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Props) {
+export default function DocsPanel({ projectId, projectName: _projectName, onCodeRefClick }: Props) {
   const [content, setContent] = useState("");
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [exportedPath, setExportedPath] = useState<string | null>(null);
@@ -25,7 +25,9 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
   const [templates, setTemplates] = useState<DocTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState("default");
   const [exportPath, setExportPath] = useState("DOCUMENTATION.md");
+  const [exportFormat, setExportFormat] = useState<DocExportFormat>("md");
   const [showUpload, setShowUpload] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadId, setUploadId] = useState("");
   const [uploadName, setUploadName] = useState("");
   const [uploadContent, setUploadContent] = useState("");
@@ -79,6 +81,7 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
         if (event.type === "saved") {
           setGeneratedAt(event.generated_at as string);
           setStatus(null);
+          loadExisting();
         }
         if (event.type === "error") {
           setError(event.content as string);
@@ -96,14 +99,20 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
     }
   }
 
+  function exportPathForFormat(path: string, format: DocExportFormat) {
+    const base = path.replace(/\.(md|txt|docx|pdf)$/i, "");
+    return `${base}.${format}`;
+  }
+
   async function handleExport() {
     if (!content) return;
     setExporting(true);
     setError(null);
     try {
-      const result = await api.exportDocumentation(projectId, exportPath);
+      const path = exportPathForFormat(exportPath, exportFormat);
+      const result = await api.exportDocumentation(projectId, path, exportFormat);
       setExportedPath(result.relative_path);
-      setStatus(`Saved to ${result.relative_path}`);
+      setStatus(`Saved ${result.format || exportFormat} to ${result.relative_path}`);
       setTimeout(() => setStatus(null), 4000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
@@ -113,26 +122,47 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
   }
 
   async function handleUploadTemplate() {
-    if (!uploadId.trim() || !uploadContent.trim()) {
-      setError("Template id and content are required");
+    if (!uploadId.trim()) {
+      setError("Template id is required");
+      return;
+    }
+    if (!uploadFile && !uploadContent.trim()) {
+      setError("Upload a file (.md, .txt, .docx, .pdf) or paste template content");
       return;
     }
     setUploading(true);
     setError(null);
     try {
-      const saved = await api.uploadDocTemplate(uploadId, uploadContent, uploadName || undefined);
+      const saved = uploadFile
+        ? await api.uploadDocTemplateFile(uploadId, uploadFile, uploadName || undefined)
+        : await api.uploadDocTemplate(uploadId, uploadContent, uploadName || undefined);
       await loadTemplates();
       setSelectedTemplate(saved.id);
       setShowUpload(false);
       setUploadId("");
       setUploadName("");
       setUploadContent("");
-      setStatus(`Template "${saved.name}" uploaded`);
+      setUploadFile(null);
+      setStatus(`Template "${saved.name}" uploaded${saved.format ? ` (${saved.format})` : ""}`);
       setTimeout(() => setStatus(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleExportTemplate(format: DocExportFormat) {
+    try {
+      const { blob, filename } = await api.exportDocTemplate(selectedTemplate, format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Template export failed");
     }
   }
 
@@ -159,15 +189,19 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
     }
   }
 
-  function handleDownload() {
+  async function handleDownload() {
     if (!content) return;
-    const blob = new Blob([content], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${projectName.replace(/\s+/g, "-").toLowerCase()}-documentation.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const { blob, filename } = await api.downloadDocumentation(projectId, exportFormat);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Download failed");
+    }
   }
 
   const selectedMeta = templates.find((t) => t.id === selectedTemplate);
@@ -226,13 +260,26 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
             Delete template
           </button>
         )}
+        <label className="docs-control">
+          <span>Export format</span>
+          <select
+            value={exportFormat}
+            onChange={(e) => setExportFormat(e.target.value as DocExportFormat)}
+            disabled={generating}
+          >
+            <option value="md">Markdown (.md)</option>
+            <option value="txt">Plain text (.txt)</option>
+            <option value="docx">Word (.docx)</option>
+            <option value="pdf">PDF (.pdf)</option>
+          </select>
+        </label>
         <label className="docs-control docs-export-path">
           <span>Save to project</span>
           <div className="docs-export-row">
             <input
               type="text"
-              value={exportPath}
-              onChange={(e) => setExportPath(e.target.value)}
+              value={exportPathForFormat(exportPath, exportFormat)}
+              onChange={(e) => setExportPath(e.target.value.replace(/\.(md|txt|docx|pdf)$/i, ""))}
               placeholder="DOCUMENTATION.md"
               disabled={exporting}
             />
@@ -250,10 +297,10 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
 
       {showUpload && (
         <div className="docs-upload-panel">
-          <h4>Upload custom template</h4>
+          <h4>Template library</h4>
           <p className="docs-upload-hint">
-            Provide a Markdown template with section headings. Placeholders like [Project Name] will be
-            filled from the indexed codebase.
+            Import templates as Markdown, plain text, Word (.docx), or PDF. Use{" "}
+            <code>{`{{ARCHITECTURE_DIAGRAM}}`}</code> in the Architecture section to embed the system diagram.
           </p>
           <div className="docs-upload-fields">
             <label>
@@ -276,11 +323,19 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
             </label>
           </div>
           <label className="docs-upload-content-label">
-            Template content
+            Import template file
+            <input
+              type="file"
+              accept=".md,.txt,.docx,.pdf,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+            />
+          </label>
+          <label className="docs-upload-content-label">
+            Or paste template content (Markdown)
             <textarea
               value={uploadContent}
               onChange={(e) => setUploadContent(e.target.value)}
-              rows={12}
+              rows={10}
               placeholder="# [Project Name]&#10;&#10;## Overview&#10;..."
             />
           </label>
@@ -291,6 +346,27 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
               onClick={() => loadTemplatePreview(selectedTemplate)}
             >
               Load selected as starting point
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => handleExportTemplate("md")}
+            >
+              Export .md
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => handleExportTemplate("docx")}
+            >
+              Export .docx
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => handleExportTemplate("pdf")}
+            >
+              Export .pdf
             </button>
             <button
               type="button"
@@ -315,8 +391,7 @@ export default function DocsPanel({ projectId, projectName, onCodeRefClick }: Pr
             <p>No documentation yet.</p>
             <p className="docs-empty-hint">
               Choose a template, then click <strong>Generate</strong> to produce professional documentation
-              — architecture, setup, API routes, configuration, and more. Save the result into your project
-              repo or download it as Markdown.
+              with an auto-generated system architecture diagram. Export as Markdown, Word, PDF, or plain text.
             </p>
           </div>
         ) : (

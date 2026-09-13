@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -22,17 +22,21 @@ from server.graph.queries import (
     search_symbols,
 )
 from server.context_pack.builder import SIZE_PRESETS, build_context_pack
+from server.docs.diagram_embed import architecture_asset_path
 from server.docs.generator import (
     DEFAULT_EXPORT_PATH,
     delete_custom_template,
     documentation_stream,
     export_documentation_to_project,
+    export_template_file,
     generate_documentation_sync,
     get_template_detail,
+    import_custom_template_file,
     list_templates,
     load_documentation,
     save_custom_template,
 )
+from server.docs.format_export import SUPPORTED_EXPORT_FORMATS, default_filename, export_content
 from server.indexer.engine import create_project, get_progress
 
 app = FastAPI(title="Code-Buddy", version="0.1.0")
@@ -98,6 +102,7 @@ class UploadTemplateRequest(BaseModel):
 
 class ExportDocsRequest(BaseModel):
     path: str = Field(DEFAULT_EXPORT_PATH, description="Relative path inside project root")
+    format: str = Field("md", description="Export format: md, txt, docx, or pdf")
 
 
 class ContextPackRequest(BaseModel):
@@ -287,6 +292,36 @@ def api_upload_doc_template(body: UploadTemplateRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post("/api/documentation/templates/upload")
+async def api_upload_doc_template_file(
+    id: str = Form(...),
+    name: str | None = Form(None),
+    file: UploadFile = File(...),
+):
+    try:
+        data = await file.read()
+        if len(data) > 2_000_000:
+            raise ValueError("Template file too large (max 2MB)")
+        return import_custom_template_file(id, file.filename or "template.txt", data, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/documentation/templates/{template_id}/export")
+def api_export_doc_template(template_id: str, format: str = "md"):
+    try:
+        payload, mime, filename = export_template_file(template_id, format)
+        return Response(
+            content=payload,
+            media_type=mime,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.delete("/api/documentation/templates/{template_id}")
 def api_delete_doc_template(template_id: str):
     try:
@@ -337,11 +372,56 @@ def api_build_context_pack(project_id: str, body: ContextPackRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/api/projects/{project_id}/documentation/assets/{filename}")
+def api_documentation_asset(project_id: str, filename: str):
+    _require_project(project_id)
+    if filename != "architecture-diagram.svg":
+        raise HTTPException(status_code=404, detail="Asset not found")
+    path = architecture_asset_path(project_id)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Architecture diagram not generated yet")
+    return FileResponse(path, media_type="image/svg+xml", filename=filename)
+
+
+@app.get("/api/projects/{project_id}/documentation/download")
+def api_download_documentation(project_id: str, format: str = "md"):
+    _require_project(project_id)
+    fmt = format.lower().lstrip(".")
+    if fmt not in SUPPORTED_EXPORT_FORMATS:
+        raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
+
+    doc = load_documentation(project_id)
+    if not doc or not doc.get("content"):
+        raise HTTPException(status_code=404, detail="No documentation generated yet")
+
+    meta = get_project(project_id) or {}
+    from server.docs.diagram_embed import ARCHITECTURE_ASSET
+
+    content = doc["content"]
+    assets: dict[str, Path] = {}
+    svg_path = architecture_asset_path(project_id)
+    if svg_path.exists():
+        assets[ARCHITECTURE_ASSET] = svg_path
+
+    payload, mime = export_content(
+        content,
+        fmt,
+        title=meta.get("name", "Documentation"),
+        assets=assets,
+    )
+    filename = default_filename(f"{meta.get('name', 'documentation')}-documentation", fmt)
+    return Response(
+        content=payload,
+        media_type=mime,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.post("/api/projects/{project_id}/documentation/export")
 def api_export_documentation(project_id: str, body: ExportDocsRequest):
     _require_project(project_id)
     try:
-        return export_documentation_to_project(project_id, body.path)
+        return export_documentation_to_project(project_id, body.path, body.format)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

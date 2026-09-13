@@ -205,10 +205,27 @@ export const api = {
   getDocTemplate: (id: string) =>
     request<{ id: string; name: string; content: string; source: string }>(`/api/documentation/templates/${id}`),
   uploadDocTemplate: (id: string, content: string, name?: string) =>
-    request<{ id: string; name: string; source: string }>("/api/documentation/templates", {
+    request<{ id: string; name: string; source: string; format?: string }>("/api/documentation/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, content, name }),
+    }),
+  uploadDocTemplateFile: async (id: string, file: File, name?: string) => {
+    const form = new FormData();
+    form.append("id", id);
+    form.append("file", file);
+    if (name) form.append("name", name);
+    const res = await fetch("/api/documentation/templates/upload", { method: "POST", body: form });
+    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    return res.json() as Promise<{ id: string; name: string; source: string; format?: string }>;
+  },
+  exportDocTemplate: (id: string, format: string) =>
+    fetch(`/api/documentation/templates/${id}/export?format=${encodeURIComponent(format)}`).then(async (res) => {
+      if (!res.ok) throw new Error(await res.text() || res.statusText);
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      return { blob, filename: match?.[1] || `${id}.${format}` };
     }),
   deleteDocTemplate: (id: string) =>
     request<{ deleted: string }>(`/api/documentation/templates/${id}`, { method: "DELETE" }),
@@ -233,16 +250,28 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }),
-  exportDocumentation: (projectId: string, path = "DOCUMENTATION.md") =>
-    request<{ path: string; relative_path: string; bytes: number }>(
+  exportDocumentation: (projectId: string, path = "DOCUMENTATION.md", format = "md") =>
+    request<{ path: string; relative_path: string; bytes: number; format?: string }>(
       `/api/projects/${projectId}/documentation/export`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path }),
+        body: JSON.stringify({ path, format }),
+      }
+    ),
+  downloadDocumentation: (projectId: string, format = "md") =>
+    fetch(`/api/projects/${projectId}/documentation/download?format=${encodeURIComponent(format)}`).then(
+      async (res) => {
+        if (!res.ok) throw new Error(await res.text() || res.statusText);
+        const blob = await res.blob();
+        const disposition = res.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="([^"]+)"/);
+        return { blob, filename: match?.[1] || `documentation.${format}` };
       }
     ),
 };
+
+export type DocExportFormat = "md" | "txt" | "docx" | "pdf";
 
 export async function streamDocumentation(
   projectId: string,

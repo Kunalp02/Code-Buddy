@@ -36,6 +36,9 @@ cd [project-directory]
 ```
 
 ## Architecture
+
+{{ARCHITECTURE_DIAGRAM}}
+
 Brief description of how the system is structured (monolith, microservices, client-server, etc.).
 
 ```
