@@ -10,3 +10,5 @@ web/tsconfig.tsbuildinfo
 .env
 *.egg-info/
 .DS_Store
+analyzers/**/bin/
+analyzers/**/obj/

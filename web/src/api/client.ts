@@ -16,9 +16,12 @@ export interface ProjectMeta {
     files_total: number;
     files_parsed: number;
     symbols: number;
+    symbol_refs?: number;
+    semantic_refs?: number;
     modules: number;
     routes: number;
     languages: Record<string, number>;
+    roslyn?: { enabled: boolean; symbols?: number; references?: number } | null;
   };
 }
 
@@ -171,6 +174,38 @@ export const api = {
         file_path: string;
       }[]
     >(`/api/projects/${id}/search?q=${encodeURIComponent(q)}`),
+  findReferences: (id: string, q: string) =>
+    request<{
+      references: {
+        target: { id: number; name: string; kind: string; file_path: string; start_line: number };
+        ref_kind: string;
+        file_path: string;
+        line: number;
+        from_symbol?: string;
+        from_kind?: string;
+      }[];
+    }>(`/api/projects/${id}/references?q=${encodeURIComponent(q)}`),
+  getCallers: (id: string, q: string) =>
+    request<{
+      callers: {
+        file_path: string;
+        line: number;
+        ref_kind: string;
+        from_symbol?: string;
+        target: string;
+      }[];
+    }>(`/api/projects/${id}/callers?q=${encodeURIComponent(q)}`),
+  getCodebaseSummary: (id: string) =>
+    request<{
+      project: string;
+      framework?: string;
+      languages: Record<string, number>;
+      symbols: number;
+      symbol_refs: number;
+      routes: number;
+      roslyn?: { enabled: boolean; symbols?: number; references?: number } | null;
+      hub_symbols: { name: string; kind: string; ref_count: number }[];
+    }>(`/api/projects/${id}/summary`),
   getSnippet: (id: string, path: string, start = 1) =>
     request<{ path: string; start_line: number; end_line: number; content: string; total_lines: number }>(
       `/api/projects/${id}/snippet?path=${encodeURIComponent(path)}&start=${start}`

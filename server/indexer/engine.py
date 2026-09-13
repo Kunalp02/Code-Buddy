@@ -44,6 +44,7 @@ def index_project(project_id: str, root_path: Path) -> dict:
 
         with get_db(project_id) as conn:
             init_schema(conn)
+            conn.execute("DELETE FROM symbol_refs")
             conn.execute("DELETE FROM component_connections")
             conn.execute("DELETE FROM components")
             conn.execute("DELETE FROM module_deps")
@@ -144,6 +145,13 @@ def index_project(project_id: str, root_path: Path) -> dict:
                     (from_id, to_id, weight),
                 )
 
+            progress.message = "Building symbol references…"
+            from server.indexer.semantic import build_semantic_graph
+            from server.indexer.roslyn_bridge import run_roslyn_analysis
+
+            semantic_stats = build_semantic_graph(conn, root_path)
+            roslyn_stats = run_roslyn_analysis(conn, root_path)
+
             progress.message = "Scanning infrastructure (databases, caches, queues, Docker)…"
             infra = scan_infrastructure(root_path, files)
             docker = scan_docker(root_path)
@@ -200,10 +208,13 @@ def index_project(project_id: str, root_path: Path) -> dict:
                 "files_parsed": parsed_count,
                 "files_skipped": skipped_count,
                 "symbols": _count_symbols(project_id),
+                "symbol_refs": _count_symbol_refs(project_id),
                 "modules": len(module_files),
                 "routes": _count_routes(project_id),
                 "components": component_count,
                 "languages": dict(languages),
+                "semantic_refs": semantic_stats.get("references", 0),
+                "roslyn": roslyn_stats,
             },
             "framework": framework,
             "entry_points": entry_points[:10],
@@ -296,6 +307,12 @@ def _count_symbols(project_id: str) -> int:
 def _count_routes(project_id: str) -> int:
     with get_db(project_id) as conn:
         row = conn.execute("SELECT COUNT(*) AS c FROM routes").fetchone()
+        return row["c"] if row else 0
+
+
+def _count_symbol_refs(project_id: str) -> int:
+    with get_db(project_id) as conn:
+        row = conn.execute("SELECT COUNT(*) AS c FROM symbol_refs").fetchone()
         return row["c"] if row else 0
 
 

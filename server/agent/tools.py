@@ -3,6 +3,9 @@ from typing import Any
 
 from server.diagram.generator import generate_l1_diagram, generate_l3_flow, generate_system_diagram
 from server.graph.queries import (
+    find_references,
+    get_callers,
+    get_codebase_summary,
     get_file_symbols,
     get_module_deps,
     get_modules,
@@ -24,6 +27,50 @@ TOOL_DEFINITIONS = [
                 "Use this FIRST for architecture, database, infrastructure, or 'how does it work' questions."
             ),
             "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_codebase_summary",
+            "description": (
+                "Get index overview: languages, symbol count, reference count, routes, hub symbols. "
+                "Use FIRST for broad 'how does this project work' questions."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_references",
+            "description": (
+                "Find all usages of a symbol (class, method, function) by name. "
+                "Use for 'where is X used', 'who calls X', 'find references to X'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Symbol name to find references for"},
+                    "limit": {"type": "integer", "default": 25},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_callers",
+            "description": "List files/lines that call or reference a symbol. Shorthand for find_references.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Symbol or method name"},
+                    "limit": {"type": "integer", "default": 20},
+                },
+                "required": ["query"],
+            },
         },
     },
     {
@@ -115,6 +162,20 @@ def execute_tool(project_id: str, name: str, arguments: dict[str, Any]) -> dict[
     try:
         if name == "get_system_architecture":
             return get_system_architecture(project_id)
+        if name == "get_codebase_summary":
+            return get_codebase_summary(project_id)
+        if name == "find_references":
+            return {
+                "references": find_references(
+                    project_id, arguments.get("query", ""), arguments.get("limit", 25)
+                )
+            }
+        if name == "get_callers":
+            return {
+                "callers": get_callers(
+                    project_id, arguments.get("query", ""), arguments.get("limit", 20)
+                )
+            }
         if name == "search_symbol":
             return {
                 "results": search_symbols(

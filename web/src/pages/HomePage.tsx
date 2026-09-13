@@ -329,6 +329,7 @@ export default function HomePage() {
                     <th>Source</th>
                     <th>Branch</th>
                     <th>Symbols</th>
+                    <th>Refs</th>
                     <th>Framework</th>
                     <th></th>
                   </tr>
@@ -345,6 +346,7 @@ export default function HomePage() {
                       <td><span className={`source-badge source-${p.source || "local"}`}>{sourceIcon(p.source)}</span></td>
                       <td>{p.branch || "—"}</td>
                       <td>{p.stats?.symbols ?? 0}</td>
+                      <td>{p.stats?.symbol_refs ?? 0}</td>
                       <td>{p.framework || "—"}</td>
                       <td>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate(`/project/${p.id}`)}>

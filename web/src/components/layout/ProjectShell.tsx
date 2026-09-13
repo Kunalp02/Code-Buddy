@@ -58,6 +58,10 @@ export default function ProjectShell({ project, tab, onTabChange, children }: Pr
             <span>Symbols</span>
           </div>
           <div className="sidebar-stat">
+            <strong>{project.stats?.symbol_refs ?? 0}</strong>
+            <span>Refs</span>
+          </div>
+          <div className="sidebar-stat">
             <strong>{project.stats?.routes ?? 0}</strong>
             <span>Routes</span>
           </div>
@@ -65,6 +69,12 @@ export default function ProjectShell({ project, tab, onTabChange, children }: Pr
             <strong>{project.framework || "—"}</strong>
             <span>Stack</span>
           </div>
+          {project.stats?.roslyn?.enabled && (
+            <div className="sidebar-stat roslyn-badge">
+              <strong>Roslyn</strong>
+              <span>C# deep index</span>
+            </div>
+          )}
         </div>
 
         <nav className="sidebar-nav">

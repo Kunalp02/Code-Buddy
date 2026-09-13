@@ -11,6 +11,9 @@ from server.agent.orchestrator import chat_stream
 from server.config import settings
 from server.diagram.generator import generate_l1_diagram, generate_l3_flow, generate_system_diagram
 from server.graph.queries import (
+    find_references,
+    get_callers,
+    get_codebase_summary,
     get_file_symbols,
     get_file_tree,
     get_module_deps,
@@ -221,6 +224,28 @@ def api_files(project_id: str):
 def api_search(project_id: str, q: str, limit: int = 50):
     _require_project(project_id)
     return search_symbols(project_id, q, limit)
+
+
+@app.get("/api/projects/{project_id}/references")
+def api_references(project_id: str, q: str, limit: int = 30):
+    _require_project(project_id)
+    if not q.strip():
+        raise HTTPException(status_code=400, detail="q is required")
+    return {"references": find_references(project_id, q, limit)}
+
+
+@app.get("/api/projects/{project_id}/callers")
+def api_callers(project_id: str, q: str, limit: int = 20):
+    _require_project(project_id)
+    if not q.strip():
+        raise HTTPException(status_code=400, detail="q is required")
+    return {"callers": get_callers(project_id, q, limit)}
+
+
+@app.get("/api/projects/{project_id}/summary")
+def api_codebase_summary(project_id: str):
+    _require_project(project_id)
+    return get_codebase_summary(project_id)
 
 
 @app.get("/api/projects/{project_id}/snippet")

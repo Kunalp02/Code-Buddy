@@ -124,6 +124,20 @@ def init_schema(conn: sqlite3.Connection) -> None:
             evidence_file TEXT,
             evidence_line INTEGER
         );
+
+        CREATE TABLE IF NOT EXISTS symbol_refs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_symbol_id INTEGER,
+            to_symbol_id INTEGER NOT NULL,
+            ref_kind TEXT NOT NULL,
+            file_path TEXT,
+            line INTEGER,
+            FOREIGN KEY (from_symbol_id) REFERENCES symbols(id) ON DELETE CASCADE,
+            FOREIGN KEY (to_symbol_id) REFERENCES symbols(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_symbol_refs_to ON symbol_refs(to_symbol_id);
+        CREATE INDEX IF NOT EXISTS idx_symbol_refs_from ON symbol_refs(from_symbol_id);
         """
     )
 

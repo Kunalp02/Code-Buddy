@@ -412,6 +412,7 @@ a:hover { color: var(--primary-hover); }
 }
 .sidebar-stat strong { display: block; font-size: 15px; font-weight: 700; color: var(--text); }
 .sidebar-stat span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.sidebar-stat.roslyn-badge strong { color: var(--primary); font-size: 12px; }
 .sidebar-nav { display: flex; flex-direction: column; gap: 4px; }
 .sidebar-nav-item {
   display: flex;
@@ -477,7 +478,26 @@ a:hover { color: var(--primary-hover); }
 .tree-file.selected { border-color: var(--primary); background: var(--primary-soft); }
 .symbol-list { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
 .symbol-list h4 { margin: 0 0 8px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.symbol-item { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.symbol-row { display: flex; gap: 4px; align-items: stretch; margin-bottom: 6px; }
+.symbol-item { display: flex; justify-content: space-between; flex: 1; margin-bottom: 0; }
+.symbol-item.active { border-color: var(--primary); background: var(--primary-soft); }
+.symbol-refs-btn {
+  flex-shrink: 0;
+  width: 28px;
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+}
+.symbol-refs-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.references-panel { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.references-panel h4 { margin: 0 0 8px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.references-panel h4 code { font-size: 11px; color: var(--text); text-transform: none; letter-spacing: 0; }
+.refs-empty { font-size: 12px; color: var(--muted); margin: 0; }
+.refs-loading { font-style: italic; }
+.ref-hit { margin-bottom: 4px; }
 
 .code-viewer { min-height: calc(100vh - 64px - 49px); overflow: auto; background: var(--surface); }
 .code-viewer.empty {

@@ -12,16 +12,23 @@ from server.db import get_db, init_schema, load_meta
 from server.graph.queries import get_project, get_stats
 
 
-SYSTEM_PROMPT = """You are Arcfold, an expert codebase analyst.
+SYSTEM_PROMPT = """You are Arcfold, an expert codebase analyst with access to an indexed code graph.
+
+Tool routing (follow strictly):
+- Broad project questions → get_codebase_summary first
+- Architecture / database / infra → get_system_architecture
+- "Where is X" / "find X" → search_symbol
+- "Who calls X" / "where is X used" / references → find_references or get_callers
+- API endpoints → get_routes
+- Module structure → get_modules + get_module_deps
+- Code details → read_snippet (max 120 lines, 1-2 calls max)
 
 Rules:
-1. For architecture/database/infrastructure questions, call get_system_architecture FIRST (one call).
-2. Use the minimum number of tools needed — avoid redundant calls.
-3. NEVER guess file paths, databases, or symbols — verify with tools.
-4. Keep read_snippet calls small (max 120 lines) and use at most 1-2 per answer.
-5. Cite evidence as `path:line` for every factual claim.
-6. If evidence is insufficient, say so clearly.
-7. Answer about SYSTEM components (database type, connections, auth, queues) not folder structure.
+1. NEVER guess paths, symbols, or behavior — verify with tools first.
+2. Cite every claim as `path:line` from tool results.
+3. If tools return empty, say "Not found in index" — do not invent answers.
+4. Prefer symbol references and routes over folder names.
+5. For C# projects, Roslyn-backed references are available when indexed.
 
 Format ALL responses in Markdown:
 - Use ## headings for sections
@@ -194,6 +201,32 @@ async def chat_stream(
                                     "label": f"{comp['name']} ({comp.get('technology', '')})",
                                     "path": comp["evidence_file"],
                                     "line": comp.get("evidence_line"),
+                                }
+                            )
+                if name == "find_references":
+                    for item in result.get("references", [])[:8]:
+                        path = item.get("file_path") or ""
+                        if path:
+                            target = item.get("target", {})
+                            tname = target.get("name", "") if isinstance(target, dict) else ""
+                            evidence.append(
+                                {
+                                    "type": "reference",
+                                    "label": f"{item.get('from_symbol') or 'usage'} → {tname}",
+                                    "path": path,
+                                    "line": item.get("line"),
+                                }
+                            )
+                if name == "get_callers":
+                    for item in result.get("callers", [])[:8]:
+                        path = item.get("file_path") or ""
+                        if path:
+                            evidence.append(
+                                {
+                                    "type": "reference",
+                                    "label": f"calls {item.get('target', '')}",
+                                    "path": path,
+                                    "line": item.get("line"),
                                 }
                             )
                 if name == "read_snippet" and "path" in result:

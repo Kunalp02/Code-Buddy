@@ -338,26 +338,39 @@ def parse_csharp(source: bytes, tree) -> ParseResult:
     result = ParseResult(line_count=source.count(b"\n") + 1)
     text = source.decode("utf-8", errors="replace")
     root = tree.root_node
+    current_type: str | None = None
 
-    def walk(node):
+    def walk(node, parent_type: str | None = None):
+        nonlocal current_type
         t = node.type
-        if t == "class_declaration":
+        if t in {
+            "class_declaration",
+            "interface_declaration",
+            "struct_declaration",
+            "enum_declaration",
+            "record_declaration",
+        }:
             name_node = node.child_by_field_name("name")
             if name_node:
+                name = _node_text(source, name_node)
+                kind = t.replace("_declaration", "")
+                current_type = name
+                result.symbols.append(ParsedSymbol(name, kind, _line(node), node.end_point[0] + 1))
+        elif t in {"method_declaration", "constructor_declaration"}:
+            name_node = node.child_by_field_name("name")
+            if name_node:
+                name = _node_text(source, name_node)
+                params = node.child_by_field_name("parameters")
+                sig = name + (_node_text(source, params) if params else "()")
                 result.symbols.append(
-                    ParsedSymbol(_node_text(source, name_node), "class", _line(node), node.end_point[0] + 1)
+                    ParsedSymbol(name, "method", _line(node), node.end_point[0] + 1, sig)
                 )
-        elif t == "method_declaration":
+                _extract_csharp_route_attributes(source, node, name, result)
+        elif t == "property_declaration":
             name_node = node.child_by_field_name("name")
             if name_node:
                 result.symbols.append(
-                    ParsedSymbol(_node_text(source, name_node), "method", _line(node), node.end_point[0] + 1)
-                )
-        elif t == "interface_declaration":
-            name_node = node.child_by_field_name("name")
-            if name_node:
-                result.symbols.append(
-                    ParsedSymbol(_node_text(source, name_node), "interface", _line(node), node.end_point[0] + 1)
+                    ParsedSymbol(_node_text(source, name_node), "property", _line(node), node.end_point[0] + 1)
                 )
         elif t == "using_directive":
             result.imports.append(ParsedImport(_node_text(source, node).strip(), line=_line(node)))
@@ -368,11 +381,54 @@ def parse_csharp(source: bytes, tree) -> ParseResult:
                     ParsedSymbol(_node_text(source, name_node), "namespace", _line(node), node.end_point[0] + 1)
                 )
         for child in node.children:
-            walk(child)
+            walk(child, current_type)
 
     walk(root)
     result.routes.extend(_extract_routes_from_text(text))
+    result.routes.extend(_extract_csharp_minimal_apis(text))
     return result
+
+
+def _extract_csharp_route_attributes(source: bytes, method_node, handler: str, result: ParseResult) -> None:
+    parent = method_node.parent
+    if not parent or parent.type != "attribute_list":
+        return
+    for child in parent.children:
+        if child.type != "attribute":
+            continue
+        attr_text = _node_text(source, child)
+        for pat, default_method in [
+            (r'\[Http(Get|Post|Put|Delete|Patch)(?:\("([^"]+)"\))?\]', None),
+            (r'\[Route\("([^"]+)"\)\]', "GET"),
+        ]:
+            m = re.search(pat, attr_text, re.IGNORECASE)
+            if m:
+                groups = m.groups()
+                if len(groups) == 2 and groups[0] and groups[1] is not None:
+                    method = groups[0].upper()
+                    path = groups[1] or "/"
+                elif len(groups) >= 1:
+                    method = (default_method or "GET").upper()
+                    path = groups[-1] or "/"
+                else:
+                    continue
+                result.routes.append(
+                    ParsedRoute(method, path, handler=handler, line=_line(method_node))
+                )
+
+
+def _extract_csharp_minimal_apis(text: str) -> list[ParsedRoute]:
+    routes: list[ParsedRoute] = []
+    patterns = [
+        (r'\.Map(Get|Post|Put|Delete|Patch)\s*\(\s*"([^"]+)"', None),
+        (r'app\.Map(Get|Post|Put|Delete|Patch)\s*\(\s*"([^"]+)"', None),
+    ]
+    for i, line in enumerate(text.splitlines(), start=1):
+        for pat, _ in patterns:
+            m = re.search(pat, line, re.IGNORECASE)
+            if m:
+                routes.append(ParsedRoute(m.group(1).upper(), m.group(2), line=i))
+    return routes
 
 
 def parse_dart(source: bytes, tree) -> ParseResult:

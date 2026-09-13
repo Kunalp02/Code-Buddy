@@ -229,6 +229,109 @@ def get_component_connections(project_id: str) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def find_references(project_id: str, query: str, limit: int = 30) -> list[dict]:
+    """Find usages of a symbol by name or id."""
+    with get_db(project_id) as conn:
+        if query.isdigit():
+            target = conn.execute(
+                """
+                SELECT s.id, s.name, s.kind, s.qualified_name, f.path AS file_path, s.start_line
+                FROM symbols s JOIN files f ON f.id = s.file_id WHERE s.id = ?
+                """,
+                (int(query),),
+            ).fetchone()
+        else:
+            target = conn.execute(
+                """
+                SELECT s.id, s.name, s.kind, s.qualified_name, f.path AS file_path, s.start_line
+                FROM symbols s JOIN files f ON f.id = s.file_id
+                WHERE s.name = ? OR s.qualified_name LIKE ?
+                ORDER BY CASE WHEN s.name = ? THEN 0 ELSE 1 END
+                LIMIT 1
+                """,
+                (query, f"%{query}%", query),
+            ).fetchone()
+
+        if not target:
+            return []
+
+        rows = conn.execute(
+            """
+            SELECT r.ref_kind, r.file_path, r.line,
+                   fs.name AS from_name, fs.kind AS from_kind,
+                   ts.name AS to_name, ts.kind AS to_kind,
+                   ts.qualified_name AS to_qualified_name
+            FROM symbol_refs r
+            JOIN symbols ts ON ts.id = r.to_symbol_id
+            LEFT JOIN symbols fs ON fs.id = r.from_symbol_id
+            WHERE r.to_symbol_id = ?
+            ORDER BY r.file_path, r.line
+            LIMIT ?
+            """,
+            (target["id"], limit),
+        ).fetchall()
+
+        return [
+            {
+                "target": dict(target),
+                "ref_kind": row["ref_kind"],
+                "file_path": row["file_path"],
+                "line": row["line"],
+                "from_symbol": row["from_name"],
+                "from_kind": row["from_kind"],
+            }
+            for row in rows
+        ]
+
+
+def get_callers(project_id: str, query: str, limit: int = 20) -> list[dict]:
+    refs = find_references(project_id, query, limit)
+    callers: list[dict] = []
+    seen: set[tuple[str, int]] = set()
+    for ref in refs:
+        key = (ref.get("file_path") or "", ref.get("line") or 0)
+        if key in seen:
+            continue
+        seen.add(key)
+        callers.append(
+            {
+                "file_path": ref["file_path"],
+                "line": ref["line"],
+                "ref_kind": ref["ref_kind"],
+                "from_symbol": ref.get("from_symbol"),
+                "target": ref["target"]["name"],
+            }
+        )
+    return callers
+
+
+def get_codebase_summary(project_id: str) -> dict:
+    """Compact index summary for agent context."""
+    meta = get_project(project_id) or {}
+    stats = meta.get("stats", {})
+    with get_db(project_id) as conn:
+        top_symbols = conn.execute(
+            """
+            SELECT s.name, s.kind, COUNT(r.id) AS ref_count
+            FROM symbols s
+            LEFT JOIN symbol_refs r ON r.to_symbol_id = s.id
+            GROUP BY s.id
+            ORDER BY ref_count DESC
+            LIMIT 10
+            """
+        ).fetchall()
+    return {
+        "project": meta.get("name"),
+        "framework": meta.get("framework"),
+        "languages": stats.get("languages", {}),
+        "symbols": stats.get("symbols", 0),
+        "symbol_refs": stats.get("symbol_refs", 0),
+        "routes": stats.get("routes", 0),
+        "roslyn": stats.get("roslyn"),
+        "hub_symbols": [dict(r) for r in top_symbols],
+    }
+
+
 def get_system_architecture(project_id: str) -> dict:
     components = get_components(project_id)
     connections = get_component_connections(project_id)
