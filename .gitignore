@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.code-buddy-data/
+web/node_modules/
+web/dist/
+.env
+*.egg-info/
+.DS_Store

@@ -1,0 +1,9 @@
+[project]
+name = "code-buddy"
+version = "0.1.0"
+description = "Local-first codebase intelligence with architecture diagrams and Ollama Cloud agent"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["server*"]
