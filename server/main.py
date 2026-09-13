@@ -21,6 +21,7 @@ from server.graph.queries import (
     read_snippet,
     search_symbols,
 )
+from server.docs.generator import documentation_stream, generate_documentation_sync, list_templates, load_documentation
 from server.indexer.engine import create_project, get_progress
 
 app = FastAPI(title="Code-Buddy", version="0.1.0")
@@ -41,6 +42,11 @@ class CreateProjectRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
+    model: str | None = None
+
+
+class GenerateDocsRequest(BaseModel):
+    template: str = "default"
     model: str | None = None
 
 
@@ -145,6 +151,41 @@ def api_architecture(project_id: str):
 def api_diagram_l3(project_id: str, route: str | None = None):
     _require_project(project_id)
     return generate_l3_flow(project_id, route)
+
+
+@app.get("/api/documentation/templates")
+def api_doc_templates():
+    return list_templates()
+
+
+@app.get("/api/projects/{project_id}/documentation")
+def api_get_documentation(project_id: str):
+    _require_project(project_id)
+    doc = load_documentation(project_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="No documentation generated yet")
+    return doc
+
+
+@app.post("/api/projects/{project_id}/documentation/generate")
+def api_generate_documentation_sync(project_id: str, body: GenerateDocsRequest):
+    _require_project(project_id)
+    try:
+        content = generate_documentation_sync(project_id, body.template, body.model)
+        return load_documentation(project_id) or {"content": content}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/projects/{project_id}/documentation/stream")
+async def api_generate_documentation_stream(project_id: str, body: GenerateDocsRequest):
+    _require_project(project_id)
+
+    async def event_stream():
+        async for event in documentation_stream(project_id, body.template, body.model):
+            yield json.dumps(event) + "\n"
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 
 @app.post("/api/projects/{project_id}/chat")

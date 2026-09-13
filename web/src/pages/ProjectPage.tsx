@@ -4,9 +4,10 @@ import { api, DiagramData, EvidenceItem, ProjectMeta } from "../api/client";
 import ChatPanel from "../components/ChatPanel";
 import CodeViewer from "../components/CodeViewer";
 import DiagramView from "../components/DiagramView";
+import DocsPanel from "../components/DocsPanel";
 import Explorer from "../components/Explorer";
 
-type Tab = "explorer" | "diagram" | "chat";
+type Tab = "explorer" | "diagram" | "chat" | "docs";
 
 export default function ProjectPage() {
   const { id = "" } = useParams();
@@ -77,6 +78,7 @@ export default function ProjectPage() {
         <button className={tab === "diagram" ? "active" : ""} onClick={() => setTab("diagram")}>Diagram</button>
         <button className={tab === "explorer" ? "active" : ""} onClick={() => setTab("explorer")}>Explorer</button>
         <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>Agent Chat</button>
+        <button className={tab === "docs" ? "active" : ""} onClick={() => setTab("docs")}>Documentation</button>
       </nav>
 
       <div className="project-content">
@@ -104,6 +106,13 @@ export default function ProjectPage() {
           <ChatPanel
             projectId={id}
             onEvidenceClick={onEvidenceClick}
+            onCodeRefClick={(path, line) => openFile(path, line || 1)}
+          />
+        )}
+        {tab === "docs" && (
+          <DocsPanel
+            projectId={id}
+            projectName={project.name}
             onCodeRefClick={(path, line) => openFile(path, line || 1)}
           />
         )}

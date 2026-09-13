@@ -9,6 +9,7 @@ Local-first codebase intelligence: point at a project folder, get a searchable c
 3. **Explore** the codebase with search, file tree, and symbol navigation
 4. **Visualize** system architecture (DB, cache, Docker), module maps, and route flows
 5. **Chat** with a graph-first agent that cites evidence (`path:line`)
+6. **Generate** professional project documentation from a customizable template
 
 ## Quick start
 
@@ -45,7 +46,7 @@ chmod +x scripts/dev.sh
 1. Open http://localhost:5173
 2. Enter a local project path (e.g. `/home/you/projects/my-app`)
 3. Click **Scan & Index**
-4. Explore **Diagram**, **Explorer**, and **Agent Chat**
+4. Explore **Diagram**, **Explorer**, **Agent Chat**, and **Documentation**
 
 ## Architecture
 
@@ -65,6 +66,8 @@ server/       FastAPI backend
 - `GET /api/projects/{id}/diagrams/l1` — module architecture map
 - `GET /api/projects/{id}/search?q=Auth` — symbol search
 - `POST /api/projects/{id}/chat` — streaming agent (NDJSON)
+- `POST /api/projects/{id}/documentation/stream` — generate project docs (NDJSON stream)
+- `GET /api/projects/{id}/documentation` — retrieve last generated documentation
 
 ## Notes
 

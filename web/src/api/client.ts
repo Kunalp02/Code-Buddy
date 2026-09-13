@@ -128,7 +128,40 @@ export const api = {
   getL3Diagram: (id: string, route?: string) =>
     request<DiagramData>(`/api/projects/${id}/diagrams/l3${route ? `?route=${encodeURIComponent(route)}` : ""}`),
   getArchitecture: (id: string) => request<Record<string, unknown>>(`/api/projects/${id}/architecture`),
+  getDocumentation: (id: string) =>
+    request<{ content: string; generated_at?: string; template?: string; model?: string }>(
+      `/api/projects/${id}/documentation`
+    ),
+  getDocTemplates: () => request<{ id: string; name: string; filename: string }[]>("/api/documentation/templates"),
 };
+
+export async function streamDocumentation(
+  projectId: string,
+  template: string,
+  onEvent: (event: Record<string, unknown>) => void
+) {
+  const res = await fetch(`/api/projects/${projectId}/documentation/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ template }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response body");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      onEvent(JSON.parse(line));
+    }
+  }
+}
 
 export async function streamChat(
   projectId: string,
