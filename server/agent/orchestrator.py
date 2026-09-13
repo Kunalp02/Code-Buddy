@@ -143,7 +143,7 @@ async def chat_stream(
                         {
                             "function": {
                                 "name": tc.function.name,
-                                "arguments": tc.function.arguments,
+                                "arguments": _tool_arguments_for_message(tc.function.arguments),
                             }
                         }
                         for tc in tool_calls
@@ -154,10 +154,7 @@ async def chat_stream(
             for tc in tool_calls:
                 tool_calls_made += 1
                 name = tc.function.name
-                try:
-                    args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-                except json.JSONDecodeError:
-                    args = {}
+                args = _parse_tool_arguments(tc.function.arguments)
 
                 yield {"type": "tool_start", "name": name, "arguments": args}
                 result = execute_tool(project_id, name, args)
@@ -169,6 +166,16 @@ async def chat_stream(
                                 "label": f"{item['name']} ({item['kind']})",
                                 "path": item["file_path"],
                                 "line": item["start_line"],
+                            }
+                        )
+                if name == "get_routes" and "routes" in result:
+                    for item in result["routes"][:8]:
+                        evidence.append(
+                            {
+                                "type": "route",
+                                "label": f"{item.get('method', 'GET')} {item['path']}",
+                                "path": item.get("file_path") or "",
+                                "line": item.get("line"),
                             }
                         )
                 if name == "read_snippet" and "path" in result:
@@ -183,7 +190,7 @@ async def chat_stream(
 
                 compact = compact_tool_result(result)
                 yield {"type": "tool_end", "name": name, "result_preview": compact[:500]}
-                messages.append({"role": "tool", "content": compact})
+                messages.append({"role": "tool", "content": compact, "tool_name": name})
 
         final = "I reached the tool call limit. Please ask a more specific follow-up question."
         _save_message(project_id, sid, "assistant", final)
@@ -191,8 +198,31 @@ async def chat_stream(
         yield {"type": "token", "content": final}
         yield {"type": "done"}
     except Exception as exc:
-        err = f"Agent error: {exc}. Check OLLAMA_API_KEY and model availability."
+        hint = ""
+        if "401" in str(exc).lower() or "unauthorized" in str(exc).lower():
+            hint = " Check OLLAMA_API_KEY."
+        elif "model" in str(exc).lower():
+            hint = " Try a different model in settings."
+        err = f"Agent error: {exc}.{hint}"
         yield {"type": "error", "content": err}
+
+
+def _parse_tool_arguments(arguments: Any) -> dict[str, Any]:
+    if not arguments:
+        return {}
+    if isinstance(arguments, dict):
+        return arguments
+    if isinstance(arguments, str):
+        try:
+            parsed = json.loads(arguments)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _tool_arguments_for_message(arguments: Any) -> dict[str, Any]:
+    return _parse_tool_arguments(arguments)
 
 
 def _chunk_text(text: str, size: int = 40):
