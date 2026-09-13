@@ -41,6 +41,10 @@ export interface DiagramNode {
   color?: string;
   description?: string;
   technology?: string;
+  parentId?: string | null;
+  width?: number;
+  height?: number;
+  flow_handles?: "lr" | "tb";
   position: { x: number; y: number };
 }
 

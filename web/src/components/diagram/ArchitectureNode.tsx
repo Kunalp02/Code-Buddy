@@ -37,13 +37,18 @@ function ArchitectureNode({ data, selected }: NodeProps & { data: NodeData }) {
   const layer = n.layer || n.type || "module";
   const icon = LAYER_ICONS[layer] || LAYER_ICONS.module;
   const color = n.color || "#6366f1";
+  const isFlow = n.flow_handles === "lr";
 
   return (
     <div
-      className={`arch-node ${selected ? "selected" : ""} ${n.is_hub ? "hub" : ""}`}
+      className={`arch-node ${isFlow ? "arch-node-flow" : ""} ${selected ? "selected" : ""} ${n.is_hub ? "hub" : ""}`}
       style={{ "--node-accent": color } as CSSProperties}
     >
-      <Handle type="target" position={Position.Top} className="arch-handle" />
+      <Handle
+        type="target"
+        position={isFlow ? Position.Left : Position.Top}
+        className="arch-handle"
+      />
       <div className="arch-node-glow" />
       <div className="arch-node-header">
         <span className="arch-node-icon">{icon}</span>
@@ -58,7 +63,11 @@ function ArchitectureNode({ data, selected }: NodeProps & { data: NodeData }) {
         {n.symbol_count != null && n.symbol_count > 0 && <span>{n.symbol_count} sym</span>}
         {n.route_count != null && n.route_count > 0 && <span>{n.route_count} routes</span>}
       </div>
-      <Handle type="source" position={Position.Bottom} className="arch-handle" />
+      <Handle
+        type="source"
+        position={isFlow ? Position.Right : Position.Bottom}
+        className="arch-handle"
+      />
     </div>
   );
 }

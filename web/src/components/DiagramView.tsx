@@ -15,6 +15,7 @@ import "@xyflow/react/dist/style.css";
 import { api, DiagramData, DiagramNode } from "../api/client";
 import ArchitectureNode from "./diagram/ArchitectureNode";
 import DiagramInspector from "./diagram/DiagramInspector";
+import ZoneNode from "./diagram/ZoneNode";
 
 interface Props {
   projectId: string;
@@ -23,7 +24,7 @@ interface Props {
   onNodeClick: (node: DiagramNode) => void;
 }
 
-const nodeTypes = { architecture: ArchitectureNode };
+const nodeTypes = { architecture: ArchitectureNode, zone: ZoneNode };
 
 const LAYER_RANK: Record<string, number> = {
   external: 0,
@@ -53,6 +54,57 @@ const LAYER_RANK: Record<string, number> = {
 const NODE_W = 220;
 const COL_GAP = 48;
 const ROW_GAP = 140;
+
+function layoutSystemFlow(diagram: DiagramData): { nodes: Node[]; edges: Edge[] } {
+  const flowNodes: Node[] = diagram.nodes.map((n) => {
+    const isZone = n.type === "zone";
+    return {
+      id: n.id,
+      type: isZone ? "zone" : "architecture",
+      position: n.position,
+      parentId: n.parentId || undefined,
+      extent: n.parentId ? ("parent" as const) : undefined,
+      draggable: false,
+      selectable: !isZone,
+      style: isZone ? { width: n.width, height: n.height, zIndex: 0 } : { zIndex: 1 },
+      data: { node: n },
+    };
+  });
+
+  const maxWeight = Math.max(...diagram.edges.map((e) => e.weight || 1), 1);
+
+  const flowEdges: Edge[] = diagram.edges.map((e) => {
+    const weight = e.weight || 1;
+    const strokeWidth = 1.5 + (weight / maxWeight) * 2.5;
+    const isFlow = e.edge_type === "flow";
+
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      label: e.label,
+      type: "smoothstep",
+      animated: isFlow,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: isFlow ? "#2563eb" : "rgba(100,116,139,0.7)",
+        width: 18,
+        height: 18,
+      },
+      style: {
+        stroke: isFlow ? "#2563eb" : "rgba(100,116,139,0.55)",
+        strokeWidth,
+        strokeDasharray: isFlow ? undefined : "6 4",
+      },
+      labelStyle: { fill: "#475569", fontSize: 11, fontWeight: 600 },
+      labelBgStyle: { fill: "#ffffff", fillOpacity: 0.95 },
+      labelBgPadding: [6, 4] as [number, number],
+      labelBgBorderRadius: 4,
+    };
+  });
+
+  return { nodes: flowNodes, edges: flowEdges };
+}
 
 function layoutLayered(diagram: DiagramData): { nodes: Node[]; edges: Edge[] } {
   const byLayer = new Map<string, DiagramNode[]>();
@@ -143,7 +195,7 @@ export default function DiagramView({ projectId, diagram, onNodeClick }: Props) 
   }, [projectId]);
 
   function applyDiagram(d: DiagramData) {
-    const laid = layoutLayered(d);
+    const laid = d.layout === "system-flow" ? layoutSystemFlow(d) : layoutLayered(d);
     setNodes(laid.nodes);
     setEdges(laid.edges);
     setCurrentDiagram(d);

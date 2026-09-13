@@ -592,6 +592,25 @@ a:hover { color: var(--primary-hover); }
   background: var(--bg); color: var(--muted); border: 1px solid var(--border);
 }
 .arch-handle { width: 6px !important; height: 6px !important; background: var(--primary) !important; border: none !important; }
+.arch-node-flow { width: 200px; }
+
+.zone-node {
+  position: relative;
+  border-radius: var(--radius-md);
+  border: 2px solid color-mix(in srgb, var(--zone-accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--zone-accent) 6%, var(--surface));
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+.zone-node-label {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--zone-accent);
+}
 
 .diagram-inspector {
   border-left: 1px solid var(--border);
