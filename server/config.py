@@ -2,6 +2,17 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+LEGACY_DATA_DIR = Path(".code-buddy-data")
+DATA_DIR = Path(".arcfold-data")
+
+
+def _resolve_data_dir() -> Path:
+    if DATA_DIR.exists():
+        return DATA_DIR
+    if LEGACY_DATA_DIR.exists():
+        return LEGACY_DATA_DIR
+    return DATA_DIR
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -11,8 +22,8 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen3:8b"
     ollama_model_deep: str = "gpt-oss:120b"
 
-    data_dir: Path = Path(".code-buddy-data")
-    repos_dir: Path = Path(".code-buddy-data") / "repos"
+    data_dir: Path = _resolve_data_dir()
+    repos_dir: Path = _resolve_data_dir() / "repos"
     max_snippet_lines: int = 120
     max_agent_tool_calls: int = 16
 
@@ -30,6 +41,7 @@ class Settings(BaseSettings):
         ".turbo",
         "target",
         "vendor",
+        ".arcfold-data",
         ".code-buddy-data",
         "coverage",
         ".pytest_cache",

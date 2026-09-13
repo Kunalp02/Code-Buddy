@@ -1,6 +1,6 @@
-# Code-Buddy
+# Arcfold
 
-Local-first codebase intelligence: point at a project folder, get a searchable code graph, interactive architecture diagrams, and an AI agent powered by Ollama Cloud.
+Local-first codebase intelligence — index a repository, map its architecture, search the graph, and export documentation.
 
 ## What it does
 
@@ -8,9 +8,9 @@ Local-first codebase intelligence: point at a project folder, get a searchable c
 2. **Index** files with Tree-sitter (symbols, imports, routes, modules) — Python, JavaScript/TypeScript, Go, Java, Rust, C#, Dart, Docker
 3. **Explore** the codebase with search, file tree, and symbol navigation
 4. **Visualize** system architecture (DB, cache, Docker), module maps, and route flows
-5. **Chat** with a graph-first agent that cites evidence (`path:line`)
-6. **Generate** professional project documentation from a customizable template
-7. **Build context packs** — compact paste-ready prompts for Claude/Cursor (whole project or task-specific)
+5. **Search** the codebase with graph-backed Q&A and cited file references
+6. **Generate** project documentation from a customizable template
+7. **Build context packs** — compact prompts for your editor workflow (whole project or task-specific)
 
 ## Quick start
 
@@ -41,43 +41,26 @@ chmod +x scripts/dev.sh
 ./scripts/dev.sh
 ```
 
-- Web UI: http://localhost:5173
+- UI: http://localhost:5173
 - API: http://127.0.0.1:8000
 
-### 4. Use
+## Data directory
 
-1. Open http://localhost:5173
-2. Choose **Local**, **GitHub**, or **GitLab**
-3. For GitHub/GitLab: enter PAT → **List repositories** → select repo & branch
-4. Click **Scan & index project** (files fetched read-only via API)
-4. Explore **Diagram**, **Explorer**, **Agent Chat**, **Documentation**, and **Context Pack**
-
-## Architecture
+Indexed project data is stored in `.arcfold-data/` (legacy installs may still use `.code-buddy-data/`).
 
 ```
-web/          React UI (Vite)
-server/       FastAPI backend
-  indexer/    File walk + Tree-sitter parsing
-  graph/      SQLite graph queries
-  diagram/    L1/L3 diagram generation
-  agent/      Ollama Cloud tool-calling agent
-.code-buddy-data/   Per-project SQLite + metadata
+.arcfold-data/   Per-project SQLite + metadata
 ```
 
 ## API highlights
 
-- `POST /api/projects` — index a local path
-- `GET /api/projects/{id}/diagrams/l1` — module architecture map
-- `GET /api/projects/{id}/search?q=Auth` — symbol search
-- `POST /api/projects/{id}/chat` — streaming agent (NDJSON)
+- `POST /api/projects` — index a local, GitHub, or GitLab project
+- `GET /api/projects/{id}/diagrams/system` — system architecture diagram
 - `POST /api/projects/{id}/documentation/stream` — generate project docs (NDJSON stream)
-- `GET /api/projects/{id}/documentation` — retrieve last generated documentation
+- `PUT /api/projects/{id}/documentation` — save edited documentation
 - `POST /api/documentation/templates` — upload a custom documentation template
 - `POST /api/projects/{id}/documentation/export` — save generated docs into the project repo
-- `POST /api/projects/{id}/context-pack` — build whole-project or task-specific context pack for AI tools
 
-## Notes
+## License
 
-- Runs locally: the backend reads your filesystem directly
-- Chat requires `OLLAMA_API_KEY` for Ollama Cloud
-- Indexing works without an API key
+MIT

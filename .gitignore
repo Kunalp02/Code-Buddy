@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+.arcfold-data/
 .code-buddy-data/
 web/node_modules/
 web/dist/

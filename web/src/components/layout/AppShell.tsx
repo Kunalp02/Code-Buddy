@@ -9,21 +9,21 @@ export default function AppShell({ children }: Props) {
     <div className="app-shell">
       <header className="app-header">
         <Link to="/" className="brand">
-          <span className="brand-mark" aria-hidden>CB</span>
+          <span className="brand-mark" aria-hidden>AF</span>
           <span className="brand-text">
-            <strong>Code-Buddy</strong>
-            <small>Developer Intelligence</small>
+            <strong>Arcfold</strong>
+            <small>Codebase intelligence</small>
           </span>
         </Link>
         <nav className="app-header-nav">
           <a href="https://github.com/Kunalp02/Code-Buddy" target="_blank" rel="noreferrer" className="header-link">
-            Documentation
+            GitHub
           </a>
         </nav>
       </header>
       <main className="app-main">{children}</main>
       <footer className="app-footer">
-        <span>Code-Buddy — local-first codebase intelligence</span>
+        <span>Arcfold — map, document, and navigate your repositories</span>
       </footer>
     </div>
   );

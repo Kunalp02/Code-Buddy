@@ -30,7 +30,7 @@ def _request(token: str, path: str, host: str = GITHUB_API) -> Any:
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
-            "User-Agent": "Code-Buddy",
+            "User-Agent": "Arcfold",
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )

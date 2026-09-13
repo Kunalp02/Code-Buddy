@@ -40,7 +40,7 @@ from server.docs.generator import (
 from server.docs.format_export import SUPPORTED_EXPORT_FORMATS, default_filename, export_content
 from server.indexer.engine import create_project, get_progress
 
-app = FastAPI(title="Code-Buddy", version="0.1.0")
+app = FastAPI(title="Arcfold", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

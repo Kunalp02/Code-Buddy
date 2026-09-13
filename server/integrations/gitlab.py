@@ -23,7 +23,7 @@ def _request(token: str, path: str, host: str = DEFAULT_GITLAB) -> Any:
     url = f"{host.rstrip('/')}/api/v4{path}"
     req = urllib.request.Request(
         url,
-        headers={"PRIVATE-TOKEN": token, "User-Agent": "Code-Buddy"},
+        headers={"PRIVATE-TOKEN": token, "User-Agent": "Arcfold"},
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
@@ -89,7 +89,7 @@ def fetch_file_content(
     encoded = urllib.parse.quote(path, safe="")
     ref = urllib.parse.quote(branch, safe="")
     url = f"{host.rstrip('/')}/api/v4/projects/{project_id}/repository/files/{encoded}/raw?ref={ref}"
-    req = urllib.request.Request(url, headers={"PRIVATE-TOKEN": token, "User-Agent": "Code-Buddy"})
+    req = urllib.request.Request(url, headers={"PRIVATE-TOKEN": token, "User-Agent": "Arcfold"})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = resp.read()

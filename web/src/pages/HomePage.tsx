@@ -202,7 +202,7 @@ export default function HomePage() {
                   placeholder="/home/you/projects/my-app"
                   disabled={loading}
                 />
-                <span className="field-hint">Absolute path on the machine running Code-Buddy</span>
+                <span className="field-hint">Absolute path on the machine running Arcfold</span>
               </div>
             )}
 

@@ -12,7 +12,7 @@ from server.db import get_db, init_schema, load_meta
 from server.graph.queries import get_project, get_stats
 
 
-SYSTEM_PROMPT = """You are Code-Buddy, an expert codebase analyst.
+SYSTEM_PROMPT = """You are Arcfold, an expert codebase analyst.
 
 Rules:
 1. For architecture/database/infrastructure questions, call get_system_architecture FIRST (one call).

@@ -1,7 +1,7 @@
 [project]
-name = "code-buddy"
+name = "arcfold"
 version = "0.1.0"
-description = "Local-first codebase intelligence with architecture diagrams and Ollama Cloud agent"
+description = "Arcfold — local-first codebase intelligence with architecture maps and documentation"
 requires-python = ">=3.11"
 
 [tool.setuptools.packages.find]

@@ -62,7 +62,7 @@ def _folder_tree(root: Path, max_depth: int = MAX_TREE_DEPTH) -> str:
             entries = sorted(dir_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
         except OSError:
             return
-        skip = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", "target", ".code-buddy-data"}
+        skip = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", "target", ".arcfold-data", ".code-buddy-data"}
         dirs = [e for e in entries if e.is_dir() and e.name not in skip and not e.name.startswith(".")]
         files = [e for e in entries if e.is_file() and not e.name.startswith(".")]
         for d in dirs[:12]:
