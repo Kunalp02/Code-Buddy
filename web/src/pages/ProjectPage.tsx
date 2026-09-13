@@ -22,7 +22,7 @@ export default function ProjectPage() {
     try {
       const p = await api.getProject(id);
       setProject(p);
-      const d = await api.getL1Diagram(id);
+      const d = await api.getSystemDiagram(id);
       setDiagram(d);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load project");
@@ -84,7 +84,7 @@ export default function ProjectPage() {
           <DiagramView
             projectId={id}
             diagram={diagram}
-            onRefresh={async () => setDiagram(await api.getL1Diagram(id))}
+            onRefresh={async () => setDiagram(await api.getSystemDiagram(id))}
             onNodeClick={(node) => {
               if (node.file_path) openFile(node.file_path, node.start_line || node.line || 1);
               else if (node.path) {

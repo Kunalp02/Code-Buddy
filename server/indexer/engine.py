@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from server.db import get_db, init_schema, save_meta
+from server.indexer.infra_scanner import scan_infrastructure
 from server.indexer.parser import parse_file
 from server.indexer.walker import module_key, walk_project
 
@@ -42,6 +43,8 @@ def index_project(project_id: str, root_path: Path) -> dict:
 
         with get_db(project_id) as conn:
             init_schema(conn)
+            conn.execute("DELETE FROM component_connections")
+            conn.execute("DELETE FROM components")
             conn.execute("DELETE FROM module_deps")
             conn.execute("DELETE FROM modules")
             conn.execute("DELETE FROM routes")
@@ -140,7 +143,43 @@ def index_project(project_id: str, root_path: Path) -> dict:
                     (from_id, to_id, weight),
                 )
 
+            progress.message = "Scanning infrastructure (databases, caches, queues)…"
+            infra = scan_infrastructure(root_path, files)
+            for comp in infra.components:
+                conn.execute(
+                    """
+                    INSERT INTO components (id, name, component_type, technology, evidence_file, evidence_line, detail)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        comp.id,
+                        comp.name,
+                        comp.component_type,
+                        comp.technology,
+                        comp.evidence_file,
+                        comp.evidence_line,
+                        comp.detail,
+                    ),
+                )
+            for edge in infra.connections:
+                conn.execute(
+                    """
+                    INSERT INTO component_connections
+                    (source_id, target_id, connection_type, label, evidence_file, evidence_line)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        edge.source_id,
+                        edge.target_id,
+                        edge.connection_type,
+                        edge.label,
+                        edge.evidence_file,
+                        edge.evidence_line,
+                    ),
+                )
+
         framework = _detect_framework(languages, root_path)
+        component_count = _count_components(project_id)
         meta = {
             "id": project_id,
             "path": str(root_path),
@@ -154,6 +193,7 @@ def index_project(project_id: str, root_path: Path) -> dict:
                 "symbols": _count_symbols(project_id),
                 "modules": len(module_files),
                 "routes": _count_routes(project_id),
+                "components": component_count,
                 "languages": dict(languages),
             },
             "framework": framework,
@@ -233,6 +273,14 @@ def _count_symbols(project_id: str) -> int:
 def _count_routes(project_id: str) -> int:
     with get_db(project_id) as conn:
         row = conn.execute("SELECT COUNT(*) AS c FROM routes").fetchone()
+        return row["c"] if row else 0
+
+
+def _count_components(project_id: str) -> int:
+    with get_db(project_id) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM components WHERE component_type != 'external'"
+        ).fetchone()
         return row["c"] if row else 0
 
 

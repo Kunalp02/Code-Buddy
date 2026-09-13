@@ -7,10 +7,17 @@ const LAYER_ICONS: Record<string, string> = {
   presentation: "▣",
   api: "⬡",
   security: "⬢",
+  auth: "🔐",
   core: "◆",
   domain: "◆",
+  orm: "⬢",
   shared: "◇",
   data: "▤",
+  database: "🗄",
+  cache: "⚡",
+  queue: "📨",
+  storage: "📦",
+  search: "🔍",
   config: "⚙",
   test: "✓",
   module: "□",
@@ -44,8 +51,9 @@ function ArchitectureNode({ data, selected }: NodeProps & { data: NodeData }) {
       <div className="arch-node-title">{n.label}</div>
       {n.path && n.id !== "__system__" && <div className="arch-node-path">{n.path}</div>}
       <div className="arch-node-stats">
-        {n.file_count != null && <span>{n.file_count} files</span>}
-        {n.symbol_count != null && <span>{n.symbol_count} sym</span>}
+        {n.technology && n.layer !== "module" && <span>{n.technology}</span>}
+        {n.file_count != null && n.file_count > 0 && <span>{n.file_count} files</span>}
+        {n.symbol_count != null && n.symbol_count > 0 && <span>{n.symbol_count} sym</span>}
         {n.route_count != null && n.route_count > 0 && <span>{n.route_count} routes</span>}
       </div>
       <Handle type="source" position={Position.Bottom} className="arch-handle" />

@@ -1,18 +1,31 @@
 import json
 from typing import Any
 
-from server.diagram.generator import generate_l1_diagram, generate_l3_flow
+from server.diagram.generator import generate_l1_diagram, generate_l3_flow, generate_system_diagram
 from server.graph.queries import (
     get_file_symbols,
     get_module_deps,
     get_modules,
     get_routes,
+    get_system_architecture,
     read_snippet,
     search_symbols,
 )
 
 
 TOOL_DEFINITIONS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_system_architecture",
+            "description": (
+                "Get full system architecture in ONE call: databases (type & evidence), caches, "
+                "queues, auth, ORM, API routes, and how components connect. "
+                "Use this FIRST for architecture, database, infrastructure, or 'how does it work' questions."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -100,6 +113,8 @@ TOOL_DEFINITIONS = [
 
 def execute_tool(project_id: str, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     try:
+        if name == "get_system_architecture":
+            return get_system_architecture(project_id)
         if name == "search_symbol":
             return {
                 "results": search_symbols(
@@ -126,6 +141,8 @@ def execute_tool(project_id: str, name: str, arguments: dict[str, Any]) -> dict[
             if level == "L3":
                 return generate_l3_flow(project_id, arguments.get("route_path"))
             return generate_l1_diagram(project_id)
+        if name == "generate_diagram" and arguments.get("level") == "SYSTEM":
+            return generate_system_diagram(project_id)
         return {"error": f"Unknown tool: {name}"}
     except Exception as exc:
         return {"error": str(exc)}

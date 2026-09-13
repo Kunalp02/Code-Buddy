@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from server.agent.orchestrator import chat_stream
 from server.config import settings
-from server.diagram.generator import generate_l1_diagram, generate_l3_flow
+from server.diagram.generator import generate_l1_diagram, generate_l3_flow, generate_system_diagram
 from server.graph.queries import (
     get_file_symbols,
     get_file_tree,
@@ -121,10 +121,24 @@ def api_modules(project_id: str):
     return {"modules": get_modules(project_id), "dependencies": get_module_deps(project_id)}
 
 
+@app.get("/api/projects/{project_id}/diagrams/system")
+def api_diagram_system(project_id: str):
+    _require_project(project_id)
+    return generate_system_diagram(project_id)
+
+
 @app.get("/api/projects/{project_id}/diagrams/l1")
 def api_diagram_l1(project_id: str):
     _require_project(project_id)
     return generate_l1_diagram(project_id)
+
+
+@app.get("/api/projects/{project_id}/architecture")
+def api_architecture(project_id: str):
+    _require_project(project_id)
+    from server.graph.queries import get_system_architecture
+
+    return get_system_architecture(project_id)
 
 
 @app.get("/api/projects/{project_id}/diagrams/l3")

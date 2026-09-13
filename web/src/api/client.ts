@@ -34,6 +34,7 @@ export interface DiagramNode {
   layer?: string;
   color?: string;
   description?: string;
+  technology?: string;
   position: { x: number; y: number };
 }
 
@@ -122,9 +123,11 @@ export const api = {
     request<{ modules: { path: string; name: string; file_count: number }[]; dependencies: unknown[] }>(
       `/api/projects/${id}/modules`
     ),
+  getSystemDiagram: (id: string) => request<DiagramData>(`/api/projects/${id}/diagrams/system`),
   getL1Diagram: (id: string) => request<DiagramData>(`/api/projects/${id}/diagrams/l1`),
   getL3Diagram: (id: string, route?: string) =>
     request<DiagramData>(`/api/projects/${id}/diagrams/l3${route ? `?route=${encodeURIComponent(route)}` : ""}`),
+  getArchitecture: (id: string) => request<Record<string, unknown>>(`/api/projects/${id}/architecture`),
 };
 
 export async function streamChat(

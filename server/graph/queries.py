@@ -190,3 +190,69 @@ def get_file_symbols(project_id: str, file_path: str) -> list[dict]:
 def get_stats(project_id: str) -> dict:
     meta = load_meta(project_id) or {}
     return meta.get("stats", {})
+
+
+def get_components(project_id: str) -> list[dict]:
+    with get_db(project_id) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, name, component_type, technology, evidence_file, evidence_line, detail
+            FROM components
+            ORDER BY
+                CASE component_type
+                    WHEN 'external' THEN 0
+                    WHEN 'api' THEN 1
+                    WHEN 'auth' THEN 2
+                    WHEN 'orm' THEN 3
+                    WHEN 'service' THEN 4
+                    WHEN 'database' THEN 5
+                    WHEN 'cache' THEN 6
+                    WHEN 'queue' THEN 7
+                    WHEN 'storage' THEN 8
+                    WHEN 'search' THEN 9
+                    ELSE 10
+                END,
+                name
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_component_connections(project_id: str) -> list[dict]:
+    with get_db(project_id) as conn:
+        rows = conn.execute(
+            """
+            SELECT source_id, target_id, connection_type, label, evidence_file, evidence_line
+            FROM component_connections
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_system_architecture(project_id: str) -> dict:
+    components = get_components(project_id)
+    connections = get_component_connections(project_id)
+    routes = get_routes(project_id)
+    meta = get_project(project_id) or {}
+
+    databases = [c for c in components if c["component_type"] == "database"]
+    caches = [c for c in components if c["component_type"] == "cache"]
+    queues = [c for c in components if c["component_type"] == "queue"]
+    auth = [c for c in components if c["component_type"] == "auth"]
+    orms = [c for c in components if c["component_type"] == "orm"]
+
+    return {
+        "project": meta.get("name"),
+        "framework": meta.get("framework"),
+        "summary": {
+            "databases": [{"name": d["name"], "technology": d["technology"], "evidence": d["evidence_file"]} for d in databases],
+            "caches": [{"name": c["name"], "technology": c["technology"]} for c in caches],
+            "queues": [{"name": q["name"], "technology": q["technology"]} for q in queues],
+            "auth": [{"name": a["name"], "technology": a["technology"]} for a in auth],
+            "orms": [{"name": o["name"], "technology": o["technology"]} for o in orms],
+            "route_count": len(routes),
+            "api_routes": routes[:20],
+        },
+        "components": components,
+        "connections": connections,
+    }

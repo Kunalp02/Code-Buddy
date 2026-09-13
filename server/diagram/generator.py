@@ -1,6 +1,8 @@
 from typing import Any
 
 from server.graph.queries import (
+    get_component_connections,
+    get_components,
     get_file_symbols,
     get_module_deps,
     get_module_enrichment,
@@ -53,6 +55,40 @@ LAYER_COLORS = {
     "external": "#334155",
     "route": "#06b6d4",
     "function": "#a78bfa",
+    "database": "#10b981",
+    "cache": "#f43f5e",
+    "queue": "#f97316",
+    "storage": "#eab308",
+    "search": "#14b8a6",
+    "orm": "#6366f1",
+    "auth": "#f59e0b",
+}
+
+SYSTEM_LAYER_ORDER = {
+    "external": 0,
+    "api": 1,
+    "auth": 2,
+    "orm": 3,
+    "service": 3,
+    "core": 3,
+    "database": 4,
+    "cache": 4,
+    "queue": 4,
+    "storage": 4,
+    "search": 4,
+}
+
+SYSTEM_LAYER_LABELS = {
+    "external": "External",
+    "api": "Application",
+    "auth": "Authentication",
+    "orm": "Data Access",
+    "service": "Services",
+    "database": "Databases",
+    "cache": "Cache / Sessions",
+    "queue": "Message Queues",
+    "storage": "Object Storage",
+    "search": "Search / Analytics",
 }
 
 
@@ -317,4 +353,94 @@ def generate_l3_flow(project_id: str, route_path: str | None = None) -> dict[str
         "summary": f"Request flow: {selected.get('method', 'GET')} {selected['path']}",
         "route": selected,
         "legend": [],
+    }
+
+
+def generate_system_diagram(project_id: str) -> dict[str, Any]:
+    """System architecture diagram: databases, caches, auth, connections — not folder structure."""
+    components = get_components(project_id)
+    connections = get_component_connections(project_id)
+    meta = get_project(project_id) or {}
+    routes = get_routes(project_id)
+
+    if not components:
+        return {
+            "level": "SYSTEM",
+            "layout": "system",
+            "nodes": [],
+            "edges": [],
+            "clusters": [],
+            "summary": "Re-index the project to detect system components (database, cache, auth).",
+            "legend": [],
+        }
+
+    nodes: list[dict[str, Any]] = []
+    for comp in components:
+        ctype = comp["component_type"]
+        nodes.append(
+            {
+                "id": comp["id"],
+                "type": ctype,
+                "label": comp["name"],
+                "layer": ctype,
+                "technology": comp.get("technology", ""),
+                "file_path": comp.get("evidence_file") or "",
+                "line": comp.get("evidence_line"),
+                "description": comp.get("detail") or f"{comp['name']} ({ctype})",
+                "color": LAYER_COLORS.get(ctype, LAYER_COLORS["module"]),
+                "position": {"x": 0, "y": 0},
+            }
+        )
+
+    edges: list[dict[str, Any]] = []
+    for i, conn in enumerate(connections):
+        edges.append(
+            {
+                "id": f"sys-{i}-{conn['source_id']}->{conn['target_id']}",
+                "source": conn["source_id"],
+                "target": conn["target_id"],
+                "label": conn.get("label") or conn.get("connection_type", ""),
+                "weight": 2,
+                "edge_type": "system",
+            }
+        )
+
+    db_list = [c["name"] for c in components if c["component_type"] == "database"]
+    cache_list = [c["name"] for c in components if c["component_type"] == "cache"]
+    auth_list = [c["name"] for c in components if c["component_type"] == "auth"]
+
+    parts = []
+    if db_list:
+        parts.append(f"Databases: {', '.join(db_list)}")
+    if cache_list:
+        parts.append(f"Cache: {', '.join(cache_list)}")
+    if auth_list:
+        parts.append(f"Auth: {', '.join(auth_list)}")
+    if routes:
+        parts.append(f"{len(routes)} API routes")
+
+    summary = "System architecture — " + (" · ".join(parts) if parts else "application components detected")
+    summary += f" · {len(connections)} connections mapped from code evidence."
+
+    present_layers = {c["component_type"] for c in components}
+    legend = [
+        {"layer": layer, "label": SYSTEM_LAYER_LABELS.get(layer, layer.title()), "color": LAYER_COLORS.get(layer, "#818cf8")}
+        for layer in sorted(present_layers, key=lambda x: SYSTEM_LAYER_ORDER.get(x, 5))
+        if layer in SYSTEM_LAYER_LABELS
+    ]
+
+    return {
+        "level": "SYSTEM",
+        "layout": "system",
+        "nodes": nodes,
+        "edges": edges,
+        "clusters": [],
+        "summary": summary,
+        "legend": legend,
+        "meta": {
+            "framework": meta.get("framework"),
+            "databases": db_list,
+            "caches": cache_list,
+            "auth": auth_list,
+        },
     }

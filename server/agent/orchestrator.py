@@ -15,13 +15,13 @@ from server.graph.queries import get_project, get_stats
 SYSTEM_PROMPT = """You are Code-Buddy, an expert codebase analyst.
 
 Rules:
-1. ALWAYS use graph tools first before reading file snippets.
-2. NEVER guess file paths or symbols — verify with tools.
-3. Keep read_snippet calls small (max 120 lines).
-4. Cite evidence as `path:line` for every factual claim.
-5. If evidence is insufficient, say so clearly.
-6. Prefer structural answers: modules, routes, symbols, dependencies.
-7. When explaining flows, mention the route and handler files.
+1. For architecture/database/infrastructure questions, call get_system_architecture FIRST (one call).
+2. Use the minimum number of tools needed — avoid redundant calls.
+3. NEVER guess file paths, databases, or symbols — verify with tools.
+4. Keep read_snippet calls small (max 120 lines) and use at most 1-2 per answer.
+5. Cite evidence as `path:line` for every factual claim.
+6. If evidence is insufficient, say so clearly.
+7. Answer about SYSTEM components (database type, connections, auth, queues) not folder structure.
 
 Format ALL responses in Markdown:
 - Use ## headings for sections
@@ -121,7 +121,7 @@ async def chat_stream(
     client = _client()
 
     try:
-        while tool_calls_made <= settings.max_agent_tool_calls:
+        while tool_calls_made < settings.max_agent_tool_calls:
             response = client.chat(
                 model=model_name,
                 messages=messages,
@@ -185,6 +185,17 @@ async def chat_stream(
                                 "line": item.get("line"),
                             }
                         )
+                if name == "get_system_architecture":
+                    for comp in result.get("components", [])[:10]:
+                        if comp.get("evidence_file"):
+                            evidence.append(
+                                {
+                                    "type": comp.get("component_type", "component"),
+                                    "label": f"{comp['name']} ({comp.get('technology', '')})",
+                                    "path": comp["evidence_file"],
+                                    "line": comp.get("evidence_line"),
+                                }
+                            )
                 if name == "read_snippet" and "path" in result:
                     evidence.append(
                         {
@@ -199,10 +210,29 @@ async def chat_stream(
                 yield {"type": "tool_end", "name": name, "result_preview": compact[:500]}
                 messages.append({"role": "tool", "content": compact, "tool_name": name})
 
-        final = "I reached the tool call limit. Please ask a more specific follow-up question."
-        _save_message(project_id, sid, "assistant", final)
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "Tool budget reached. Summarize ALL findings gathered so far in markdown. "
+                    "Include databases, connections, routes, and components. Do not request more tools."
+                ),
+            }
+        )
+        try:
+            summary_resp = client.chat(model=model_name, messages=messages, stream=False)
+            final = summary_resp.message.content or "Partial answer only — try a more focused question."
+        except Exception:
+            final = (
+                "I used many tool calls but could not finish synthesizing. "
+                "Try asking one specific question, e.g. 'What database is used?' or 'List API routes'."
+            )
+        _save_message(project_id, sid, "assistant", final, {"tool_calls": tool_calls_made, "evidence": evidence})
         yield {"type": "session", "session_id": sid}
-        yield {"type": "token", "content": final}
+        yield {"type": "evidence", "items": evidence}
+        yield {"type": "meta", "tool_calls": tool_calls_made, "model": model_name, "partial": True}
+        for chunk in _chunk_text(final):
+            yield {"type": "token", "content": chunk}
         yield {"type": "done"}
     except Exception as exc:
         hint = ""

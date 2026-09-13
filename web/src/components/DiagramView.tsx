@@ -26,18 +26,26 @@ interface Props {
 const nodeTypes = { architecture: ArchitectureNode };
 
 const LAYER_RANK: Record<string, number> = {
-  system: 0,
   external: 0,
+  system: 0,
   presentation: 1,
-  api: 2,
+  api: 1,
   route: 2,
+  auth: 2,
   security: 2,
+  orm: 3,
+  service: 3,
   core: 3,
   domain: 3,
   function: 4,
   shared: 4,
   module: 4,
+  database: 5,
   data: 5,
+  cache: 5,
+  queue: 5,
+  storage: 5,
+  search: 5,
   config: 6,
   test: 7,
 };
@@ -113,11 +121,11 @@ function layoutLayered(diagram: DiagramData): { nodes: Node[]; edges: Edge[] } {
   return { nodes: flowNodes, edges: flowEdges };
 }
 
-export default function DiagramView({ projectId, diagram, onRefresh, onNodeClick }: Props) {
+export default function DiagramView({ projectId, diagram, onNodeClick }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selected, setSelected] = useState<DiagramNode | null>(null);
-  const [viewMode, setViewMode] = useState<"architecture" | "flow">("architecture");
+  const [viewMode, setViewMode] = useState<"system" | "modules" | "flow">("system");
   const [currentDiagram, setCurrentDiagram] = useState<DiagramData | null>(diagram);
   const [routes, setRoutes] = useState<{ method: string; path: string }[]>([]);
   const [selectedRoute, setSelectedRoute] = useState<string>("");
@@ -160,11 +168,16 @@ export default function DiagramView({ projectId, diagram, onRefresh, onNodeClick
     setViewMode("flow");
   }
 
-  async function loadArchitecture() {
+  async function loadSystem() {
+    const d = await api.getSystemDiagram(projectId);
+    applyDiagram(d);
+    setViewMode("system");
+  }
+
+  async function loadModules() {
     const d = await api.getL1Diagram(projectId);
     applyDiagram(d);
-    setViewMode("architecture");
-    onRefresh();
+    setViewMode("modules");
   }
 
   if (!currentDiagram) {
@@ -176,14 +189,17 @@ export default function DiagramView({ projectId, diagram, onRefresh, onNodeClick
       <div className="diagram-toolbar">
         <div>
           <h3>
-            {viewMode === "architecture" ? "Auto Architecture Map" : "Request Flow"}
+            {viewMode === "system" ? "System Architecture" : viewMode === "modules" ? "Module Map" : "Request Flow"}
             <span className="diagram-level">{currentDiagram.level}</span>
           </h3>
           <p>{currentDiagram.summary}</p>
         </div>
         <div className="diagram-actions">
-          <button className={viewMode === "architecture" ? "active" : ""} onClick={loadArchitecture}>
-            Architecture
+          <button className={viewMode === "system" ? "active" : ""} onClick={loadSystem}>
+            System
+          </button>
+          <button className={viewMode === "modules" ? "active" : ""} onClick={loadModules}>
+            Modules
           </button>
           {routes.length > 0 && (
             <>
@@ -204,7 +220,7 @@ export default function DiagramView({ projectId, diagram, onRefresh, onNodeClick
         </div>
       </div>
 
-      {legend.length > 0 && viewMode === "architecture" && (
+      {legend.length > 0 && viewMode !== "flow" && (
         <div className="diagram-legend">
           {legend.map((item) => (
             <span key={item.layer} className="legend-item">

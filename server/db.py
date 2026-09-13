@@ -104,6 +104,26 @@ def init_schema(conn: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL,
             FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS components (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            component_type TEXT NOT NULL,
+            technology TEXT,
+            evidence_file TEXT,
+            evidence_line INTEGER,
+            detail TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS component_connections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_id TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            connection_type TEXT,
+            label TEXT,
+            evidence_file TEXT,
+            evidence_line INTEGER
+        );
         """
     )
 

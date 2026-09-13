@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     data_dir: Path = Path(".code-buddy-data")
     max_snippet_lines: int = 120
-    max_agent_tool_calls: int = 8
+    max_agent_tool_calls: int = 16
 
     skip_dirs: set[str] = {
         ".git",
