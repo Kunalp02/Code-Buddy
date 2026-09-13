@@ -5,15 +5,36 @@ import AppShell from "../components/layout/AppShell";
 
 type SourceTab = "local" | "github" | "gitlab";
 
+interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  owner: string;
+  default_branch: string;
+}
+
+interface GitLabProject {
+  id: number;
+  name: string;
+  path_with_namespace: string;
+  default_branch: string;
+}
+
 export default function HomePage() {
   const navigate = useNavigate();
   const [sourceTab, setSourceTab] = useState<SourceTab>("local");
   const [path, setPath] = useState("/workspace");
-  const [url, setUrl] = useState("");
-  const [branch, setBranch] = useState("main");
   const [token, setToken] = useState("");
+  const [gitlabHost, setGitlabHost] = useState("https://gitlab.com");
+  const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);
+  const [gitlabProjects, setGitlabProjects] = useState<GitLabProject[]>([]);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [selectedGithubRepo, setSelectedGithubRepo] = useState("");
+  const [selectedGitlabProject, setSelectedGitlabProject] = useState("");
+  const [branch, setBranch] = useState("main");
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [loading, setLoading] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<{ has_api_key: boolean; ollama_model: string } | null>(null);
 
@@ -22,18 +43,96 @@ export default function HomePage() {
     api.listProjects().then(setProjects).catch(() => setProjects([]));
   }, []);
 
+  const selectedGh = githubRepos.find((r) => r.full_name === selectedGithubRepo);
+  const selectedGl = gitlabProjects.find((p) => String(p.id) === selectedGitlabProject);
+
+  async function connectRemote() {
+    if (!token.trim()) {
+      setError("Enter your personal access token first.");
+      return;
+    }
+    setConnecting(true);
+    setError(null);
+    setBranches([]);
+    try {
+      if (sourceTab === "github") {
+        const repos = await api.listGitHubRepos(token);
+        setGithubRepos(repos);
+        if (repos[0]) {
+          setSelectedGithubRepo(repos[0].full_name);
+          await loadGithubBranches(repos[0].owner, repos[0].name, repos[0].default_branch);
+        }
+      } else {
+        const list = await api.listGitLabProjects(token, gitlabHost);
+        setGitlabProjects(list);
+        if (list[0]) {
+          setSelectedGitlabProject(String(list[0].id));
+          await loadGitlabBranches(list[0].id, list[0].default_branch);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to connect");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function loadGithubBranches(owner: string, repo: string, defaultBranch?: string) {
+    const list = await api.listGitHubBranches(token, owner, repo);
+    const names = list.map((b) => b.name);
+    setBranches(names);
+    setBranch(defaultBranch && names.includes(defaultBranch) ? defaultBranch : names[0] || "main");
+  }
+
+  async function loadGitlabBranches(projectId: number, defaultBranch?: string) {
+    const list = await api.listGitLabBranches(token, projectId, gitlabHost);
+    const names = list.map((b) => b.name);
+    setBranches(names);
+    setBranch(defaultBranch && names.includes(defaultBranch) ? defaultBranch : names[0] || "main");
+  }
+
+  async function onGithubRepoChange(fullName: string) {
+    setSelectedGithubRepo(fullName);
+    const r = githubRepos.find((x) => x.full_name === fullName);
+    if (r && token) await loadGithubBranches(r.owner, r.name, r.default_branch);
+  }
+
+  async function onGitlabProjectChange(id: string) {
+    setSelectedGitlabProject(id);
+    const p = gitlabProjects.find((x) => String(x.id) === id);
+    if (p && token) await loadGitlabBranches(p.id, p.default_branch);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const project = await api.createProject({
-        source: sourceTab,
-        path: sourceTab === "local" ? path : undefined,
-        url: sourceTab !== "local" ? url : undefined,
-        branch: sourceTab !== "local" && branch ? branch : undefined,
-        token: sourceTab !== "local" && token ? token : undefined,
-      });
+      let body;
+      if (sourceTab === "local") {
+        body = { source: "local" as const, path };
+      } else if (sourceTab === "github") {
+        if (!selectedGh) throw new Error("Select a repository");
+        body = {
+          source: "github" as const,
+          token,
+          owner: selectedGh.owner,
+          repo: selectedGh.name,
+          url: `https://github.com/${selectedGh.full_name}`,
+          branch,
+        };
+      } else {
+        if (!selectedGl) throw new Error("Select a project");
+        body = {
+          source: "gitlab" as const,
+          token,
+          gitlab_project_id: selectedGl.id,
+          gitlab_host: gitlabHost,
+          url: selectedGl.path_with_namespace,
+          branch,
+        };
+      }
+      const project = await api.createProject(body);
       setProjects((prev) => [project, ...prev.filter((p) => p.id !== project.id)]);
       navigate(`/project/${project.id}`);
     } catch (err) {
@@ -56,8 +155,8 @@ export default function HomePage() {
           <p className="eyebrow">Enterprise codebase intelligence</p>
           <h1>Understand, document, and assist across your repositories</h1>
           <p className="hero-lead">
-            Index from a local path, GitHub, or GitLab. Explore architecture diagrams, search the code
-            graph, chat with an evidence-backed agent, generate documentation, and build context packs for AI tools.
+            Import from a local path, GitHub, or GitLab. Remote repos are read via API — no git clone.
+            Select a repository and branch, then index into a searchable graph.
           </p>
           {health && (
             <div className="status-row">
@@ -72,7 +171,7 @@ export default function HomePage() {
         <section className="panel import-panel">
           <div className="panel-header">
             <h2>Import project</h2>
-            <p>Choose a source and index the codebase into a searchable graph.</p>
+            <p>Local path or connect with a token to browse repos and branches (read-only via API).</p>
           </div>
 
           <div className="source-tabs">
@@ -81,7 +180,11 @@ export default function HomePage() {
                 key={tab}
                 type="button"
                 className={`source-tab ${sourceTab === tab ? "active" : ""}`}
-                onClick={() => setSourceTab(tab)}
+                onClick={() => {
+                  setSourceTab(tab);
+                  setError(null);
+                  setBranches([]);
+                }}
               >
                 {tab === "local" ? "Local directory" : tab === "github" ? "GitHub" : "GitLab"}
               </button>
@@ -105,51 +208,104 @@ export default function HomePage() {
 
             {sourceTab !== "local" && (
               <>
-                <div className="form-field">
-                  <label htmlFor="git-url">Repository URL or path</label>
-                  <input
-                    id="git-url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder={
-                      sourceTab === "github"
-                        ? "https://github.com/org/repo or org/repo"
-                        : "https://gitlab.com/org/repo or org/repo"
-                    }
-                    disabled={loading}
-                  />
+                <div className="api-read-banner">
+                  <strong>Read-only via API</strong> — files are fetched from {sourceTab === "github" ? "GitHub" : "GitLab"} using your token.
+                  Nothing is cloned. Your token is used only for this session and is not stored.
                 </div>
-                <div className="form-row">
+
+                {sourceTab === "gitlab" && (
                   <div className="form-field">
-                    <label htmlFor="git-branch">Branch</label>
+                    <label htmlFor="gitlab-host">GitLab host</label>
                     <input
-                      id="git-branch"
-                      value={branch}
-                      onChange={(e) => setBranch(e.target.value)}
-                      placeholder="main"
+                      id="gitlab-host"
+                      value={gitlabHost}
+                      onChange={(e) => setGitlabHost(e.target.value)}
+                      placeholder="https://gitlab.com"
                       disabled={loading}
                     />
                   </div>
+                )}
+
+                <div className="form-row">
                   <div className="form-field">
-                    <label htmlFor="git-token">Access token (optional)</label>
+                    <label htmlFor="git-token">Personal access token</label>
                     <input
                       id="git-token"
                       type="password"
                       value={token}
                       onChange={(e) => setToken(e.target.value)}
-                      placeholder="For private repositories"
+                      placeholder={sourceTab === "github" ? "ghp_…" : "glpat-…"}
                       disabled={loading}
                       autoComplete="off"
                     />
                   </div>
+                  <div className="form-field form-field-action">
+                    <label>&nbsp;</label>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={connectRemote}
+                      disabled={connecting || loading || !token.trim()}
+                    >
+                      {connecting ? "Connecting…" : "List repositories"}
+                    </button>
+                  </div>
                 </div>
+
+                {sourceTab === "github" && githubRepos.length > 0 && (
+                  <div className="form-field">
+                    <label htmlFor="gh-repo">Repository</label>
+                    <select
+                      id="gh-repo"
+                      value={selectedGithubRepo}
+                      onChange={(e) => onGithubRepoChange(e.target.value)}
+                      disabled={loading}
+                    >
+                      {githubRepos.map((r) => (
+                        <option key={r.id} value={r.full_name}>{r.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {sourceTab === "gitlab" && gitlabProjects.length > 0 && (
+                  <div className="form-field">
+                    <label htmlFor="gl-project">Project</label>
+                    <select
+                      id="gl-project"
+                      value={selectedGitlabProject}
+                      onChange={(e) => onGitlabProjectChange(e.target.value)}
+                      disabled={loading}
+                    >
+                      {gitlabProjects.map((p) => (
+                        <option key={p.id} value={String(p.id)}>{p.path_with_namespace}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {branches.length > 0 && (
+                  <div className="form-field">
+                    <label htmlFor="git-branch">Branch</label>
+                    <select
+                      id="git-branch"
+                      value={branch}
+                      onChange={(e) => setBranch(e.target.value)}
+                      disabled={loading}
+                    >
+                      {branches.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </>
             )}
 
             {error && <div className="alert alert-error">{error}</div>}
 
             <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-              {loading ? "Indexing repository…" : "Scan & index project"}
+              {loading ? "Reading & indexing…" : "Scan & index project"}
             </button>
           </form>
         </section>
@@ -171,8 +327,8 @@ export default function HomePage() {
                   <tr>
                     <th>Project</th>
                     <th>Source</th>
+                    <th>Branch</th>
                     <th>Symbols</th>
-                    <th>Modules</th>
                     <th>Framework</th>
                     <th></th>
                   </tr>
@@ -187,8 +343,8 @@ export default function HomePage() {
                         </button>
                       </td>
                       <td><span className={`source-badge source-${p.source || "local"}`}>{sourceIcon(p.source)}</span></td>
+                      <td>{p.branch || "—"}</td>
                       <td>{p.stats?.symbols ?? 0}</td>
-                      <td>{p.stats?.modules ?? 0}</td>
                       <td>{p.framework || "—"}</td>
                       <td>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate(`/project/${p.id}`)}>
@@ -201,21 +357,6 @@ export default function HomePage() {
               </table>
             </div>
           )}
-        </section>
-
-        <section className="feature-grid">
-          {[
-            { title: "Architecture", desc: "System, module, and request-flow diagrams from code evidence." },
-            { title: "Explorer", desc: "Search symbols, browse files, and jump to source with line precision." },
-            { title: "Agent chat", desc: "Ask questions grounded in the graph with cited path:line evidence." },
-            { title: "Documentation", desc: "Generate professional docs from org templates and export to repo." },
-            { title: "Context packs", desc: "Compact prompts for Claude/Cursor — whole project or task-specific." },
-          ].map((f) => (
-            <article key={f.title} className="feature-card">
-              <h3>{f.title}</h3>
-              <p>{f.desc}</p>
-            </article>
-          ))}
         </section>
       </div>
     </AppShell>

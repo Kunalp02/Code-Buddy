@@ -49,9 +49,34 @@ app.add_middleware(
 class CreateProjectRequest(BaseModel):
     source: str = Field("local", description="local | github | gitlab")
     path: str | None = Field(None, description="Local directory path (required for source=local)")
-    url: str | None = Field(None, description="Repository URL or owner/repo (github/gitlab)")
-    branch: str | None = Field(None, description="Git branch to clone")
-    token: str | None = Field(None, description="Optional PAT for private repositories")
+    url: str | None = Field(None, description="Repository URL or namespace (optional)")
+    branch: str | None = Field(None, description="Git branch to read via API")
+    token: str | None = Field(None, description="PAT to read remote repo via API (not stored)")
+    owner: str | None = Field(None, description="GitHub owner/org")
+    repo: str | None = Field(None, description="GitHub repository name")
+    gitlab_project_id: int | None = Field(None, description="GitLab numeric project id")
+    gitlab_host: str = Field("https://gitlab.com", description="GitLab instance URL")
+
+
+class GitHubTokenRequest(BaseModel):
+    token: str
+
+
+class GitHubBranchesRequest(BaseModel):
+    token: str
+    owner: str
+    repo: str
+
+
+class GitLabTokenRequest(BaseModel):
+    token: str
+    host: str = "https://gitlab.com"
+
+
+class GitLabBranchesRequest(BaseModel):
+    token: str
+    project_id: int
+    host: str = "https://gitlab.com"
 
 
 class ChatRequest(BaseModel):
@@ -82,6 +107,46 @@ class ContextPackRequest(BaseModel):
     max_chars: int | None = Field(None, description="Override character budget")
 
 
+@app.post("/api/integrations/github/repos")
+def api_github_repos(body: GitHubTokenRequest):
+    try:
+        from server.integrations.github import list_repositories
+
+        return list_repositories(body.token)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/integrations/github/branches")
+def api_github_branches(body: GitHubBranchesRequest):
+    try:
+        from server.integrations.github import list_branches
+
+        return list_branches(body.token, body.owner, body.repo)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/integrations/gitlab/projects")
+def api_gitlab_projects(body: GitLabTokenRequest):
+    try:
+        from server.integrations.gitlab import list_projects
+
+        return list_projects(body.token, body.host)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/integrations/gitlab/branches")
+def api_gitlab_branches(body: GitLabBranchesRequest):
+    try:
+        from server.integrations.gitlab import list_branches
+
+        return list_branches(body.token, body.project_id, body.host)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/api/health")
 def health():
     return {
@@ -102,8 +167,12 @@ def api_create_project(body: CreateProjectRequest):
     source = (body.source or "local").lower()
     if source == "local" and not body.path:
         raise HTTPException(status_code=400, detail="path is required for local projects")
-    if source in {"github", "gitlab"} and not body.url:
-        raise HTTPException(status_code=400, detail="url is required for git repositories")
+    if source == "github" and not ((body.owner and body.repo) or body.url):
+        raise HTTPException(status_code=400, detail="GitHub owner+repo or url is required")
+    if source == "gitlab" and not body.gitlab_project_id:
+        raise HTTPException(status_code=400, detail="gitlab_project_id is required for GitLab")
+    if source in {"github", "gitlab"} and not body.token:
+        raise HTTPException(status_code=400, detail="token is required to read remote repositories via API")
     try:
         meta = create_project(
             path=body.path,
@@ -111,6 +180,10 @@ def api_create_project(body: CreateProjectRequest):
             url=body.url,
             branch=body.branch,
             token=body.token,
+            owner=body.owner,
+            repo=body.repo,
+            gitlab_project_id=body.gitlab_project_id,
+            gitlab_host=body.gitlab_host,
         )
         return meta
     except (FileNotFoundError, NotADirectoryError, ValueError) as exc:

@@ -3,7 +3,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from server.db import get_db, init_schema, save_meta
+from server.db import get_db, init_schema, load_meta, save_meta
 from server.indexer.docker_scanner import scan_docker
 from server.indexer.infra_scanner import scan_infrastructure
 from server.indexer.parser import parse_file
@@ -184,12 +184,17 @@ def index_project(project_id: str, root_path: Path) -> dict:
 
         framework = _detect_framework(languages, root_path)
         component_count = _count_components(project_id)
+        existing = load_meta(project_id) or {}
         meta = {
             "id": project_id,
             "path": str(root_path),
-            "name": root_path.name,
+            "name": existing.get("name") or root_path.name,
             "status": "ready",
             "indexed_at": datetime.now(timezone.utc).isoformat(),
+            "source": existing.get("source", "local"),
+            "source_url": existing.get("source_url"),
+            "branch": existing.get("branch"),
+            "read_mode": existing.get("read_mode"),
             "stats": {
                 "files_total": len(files),
                 "files_parsed": parsed_count,
@@ -308,20 +313,74 @@ def create_project(
     url: str | None = None,
     branch: str | None = None,
     token: str | None = None,
+    owner: str | None = None,
+    repo: str | None = None,
+    gitlab_project_id: int | str | None = None,
+    gitlab_host: str = "https://gitlab.com",
 ) -> dict:
-    from server.indexer.sources import resolve_project_root
+    from server.indexer.sources import fetch_github_workspace, fetch_gitlab_workspace, resolve_local_root
 
-    root, source_meta = resolve_project_root(source, path, url, branch, token)
     project_id = str(uuid.uuid4())[:8]
-    meta = {
-        "id": project_id,
-        "path": str(root),
-        "name": source_meta.get("name") or root.name,
-        "status": "indexing",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "source": source_meta.get("source", "local"),
-        "source_url": source_meta.get("url"),
-        "branch": source_meta.get("branch"),
-    }
-    save_meta(project_id, meta)
-    return index_project(project_id, root)
+    source = (source or "local").lower()
+    progress = IndexProgress()
+    progress.status = "indexing"
+    progress.message = "Preparing project…"
+    _progress[project_id] = progress
+
+    def on_fetch(done: int, total: int, rel: str) -> None:
+        progress.message = f"Reading {rel} ({done}/{total}) via API…"
+        progress.processed = done
+        progress.total = total
+
+    try:
+        if source == "local":
+            root, source_meta = resolve_local_root(path or "")
+        elif source == "github":
+            from server.integrations.github import parse_repo_ref
+
+            if owner and repo:
+                gh_owner, gh_repo = owner, repo
+            elif url:
+                gh_owner, gh_repo = parse_repo_ref(url)
+            else:
+                raise ValueError("GitHub owner/repo or url is required")
+            br = branch or "main"
+            progress.message = f"Reading github.com/{gh_owner}/{gh_repo} @ {br} via API (no clone)…"
+            root, source_meta = fetch_github_workspace(
+                project_id, token or "", gh_owner, gh_repo, br, on_fetch
+            )
+        elif source == "gitlab":
+            if not gitlab_project_id:
+                raise ValueError("GitLab project id is required")
+            br = branch or "main"
+            ns = url or str(gitlab_project_id)
+            progress.message = f"Reading GitLab project @ {br} via API (no clone)…"
+            root, source_meta = fetch_gitlab_workspace(
+                project_id,
+                token or "",
+                gitlab_project_id,
+                br,
+                ns if "/" in str(ns) else str(gitlab_project_id),
+                gitlab_host,
+                on_fetch,
+            )
+        else:
+            raise ValueError(f"Unsupported source: {source}")
+
+        meta = {
+            "id": project_id,
+            "path": str(root),
+            "name": source_meta.get("name") or root.name,
+            "status": "indexing",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "source": source_meta.get("source", "local"),
+            "source_url": source_meta.get("url"),
+            "branch": source_meta.get("branch"),
+            "read_mode": source_meta.get("read_mode"),
+        }
+        save_meta(project_id, meta)
+        return index_project(project_id, root)
+    except Exception as exc:
+        progress.status = "failed"
+        progress.error = str(exc)
+        raise

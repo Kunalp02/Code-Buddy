@@ -8,6 +8,7 @@ export interface ProjectMeta {
   source?: ProjectSource;
   source_url?: string;
   branch?: string;
+  read_mode?: string;
   framework?: string;
   indexed_at?: string;
   entry_points?: string[];
@@ -95,12 +96,58 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ status: string; has_api_key: boolean; ollama_model: string }>("/api/health"),
   listProjects: () => request<ProjectMeta[]>("/api/projects"),
+  listGitHubRepos: (token: string) =>
+    request<
+      {
+        id: number;
+        name: string;
+        full_name: string;
+        owner: string;
+        default_branch: string;
+        private: boolean;
+        html_url: string;
+      }[]
+    >("/api/integrations/github/repos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    }),
+  listGitHubBranches: (token: string, owner: string, repo: string) =>
+    request<{ name: string; sha: string }[]>("/api/integrations/github/branches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, owner, repo }),
+    }),
+  listGitLabProjects: (token: string, host = "https://gitlab.com") =>
+    request<
+      {
+        id: number;
+        name: string;
+        path_with_namespace: string;
+        default_branch: string;
+        web_url: string;
+      }[]
+    >("/api/integrations/gitlab/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, host }),
+    }),
+  listGitLabBranches: (token: string, projectId: number, host = "https://gitlab.com") =>
+    request<{ name: string; sha: string }[]>("/api/integrations/gitlab/branches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, project_id: projectId, host }),
+    }),
   createProject: (body: {
     source: ProjectSource;
     path?: string;
     url?: string;
     branch?: string;
     token?: string;
+    owner?: string;
+    repo?: string;
+    gitlab_project_id?: number;
+    gitlab_host?: string;
   }) =>
     request<ProjectMeta>("/api/projects", {
       method: "POST",

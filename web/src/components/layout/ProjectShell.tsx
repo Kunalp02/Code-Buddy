@@ -40,6 +40,12 @@ export default function ProjectShell({ project, tab, onTabChange, children }: Pr
           {project.source_url && (
             <p className="sidebar-url" title={project.source_url}>{project.source_url}</p>
           )}
+          {project.branch && (
+            <p className="sidebar-branch">Branch: <strong>{project.branch}</strong></p>
+          )}
+          {project.read_mode === "api" && (
+            <span className="read-mode-badge">Read via API · no clone</span>
+          )}
         </div>
 
         <div className="sidebar-stats">
