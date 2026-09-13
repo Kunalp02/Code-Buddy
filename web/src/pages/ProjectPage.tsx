@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, DiagramData, EvidenceItem, ProjectMeta } from "../api/client";
+import AppShell from "../components/layout/AppShell";
+import ProjectShell, { ProjectTab } from "../components/layout/ProjectShell";
 import ChatPanel from "../components/ChatPanel";
 import CodeViewer from "../components/CodeViewer";
 import DiagramView from "../components/DiagramView";
@@ -8,12 +10,10 @@ import ContextPackPanel from "../components/ContextPackPanel";
 import DocsPanel from "../components/DocsPanel";
 import Explorer from "../components/Explorer";
 
-type Tab = "explorer" | "diagram" | "chat" | "docs" | "context";
-
 export default function ProjectPage() {
   const { id = "" } = useParams();
   const [project, setProject] = useState<ProjectMeta | null>(null);
-  const [tab, setTab] = useState<Tab>("diagram");
+  const [tab, setTab] = useState<ProjectTab>("diagram");
   const [diagram, setDiagram] = useState<DiagramData | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [selectedLine, setSelectedLine] = useState<number>(1);
@@ -47,43 +47,26 @@ export default function ProjectPage() {
 
   if (error) {
     return (
-      <div className="project-page">
-        <div className="error-banner">{error}</div>
-        <Link to="/">← Back</Link>
-      </div>
+      <AppShell>
+        <div className="page-center">
+          <div className="alert alert-error">{error}</div>
+          <Link to="/" className="btn btn-secondary">← Back to projects</Link>
+        </div>
+      </AppShell>
     );
   }
 
   if (!project) {
-    return <div className="project-page loading-state">Loading project…</div>;
+    return (
+      <AppShell>
+        <div className="page-center loading-state">Loading project…</div>
+      </AppShell>
+    );
   }
 
   return (
-    <div className="project-page">
-      <header className="project-header">
-        <div>
-          <Link to="/" className="back-link">← Projects</Link>
-          <h1>{project.name}</h1>
-          <p className="project-path">{project.path}</p>
-        </div>
-        <div className="stats-row">
-          <div className="stat"><strong>{project.stats?.files_parsed ?? 0}</strong><span>files</span></div>
-          <div className="stat"><strong>{project.stats?.symbols ?? 0}</strong><span>symbols</span></div>
-          <div className="stat"><strong>{project.stats?.modules ?? 0}</strong><span>modules</span></div>
-          <div className="stat"><strong>{project.stats?.routes ?? 0}</strong><span>routes</span></div>
-          <div className="stat"><strong>{project.framework || "—"}</strong><span>framework</span></div>
-        </div>
-      </header>
-
-      <nav className="tab-bar">
-        <button className={tab === "diagram" ? "active" : ""} onClick={() => setTab("diagram")}>Diagram</button>
-        <button className={tab === "explorer" ? "active" : ""} onClick={() => setTab("explorer")}>Explorer</button>
-        <button className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>Agent Chat</button>
-        <button className={tab === "docs" ? "active" : ""} onClick={() => setTab("docs")}>Documentation</button>
-        <button className={tab === "context" ? "active" : ""} onClick={() => setTab("context")}>Context Pack</button>
-      </nav>
-
-      <div className="project-content">
+    <AppShell>
+      <ProjectShell project={project} tab={tab} onTabChange={setTab}>
         {tab === "diagram" && (
           <DiagramView
             projectId={id}
@@ -121,7 +104,7 @@ export default function ProjectPage() {
         {tab === "context" && (
           <ContextPackPanel projectId={id} projectName={project.name} />
         )}
-      </div>
-    </div>
+      </ProjectShell>
+    </AppShell>
   );
 }

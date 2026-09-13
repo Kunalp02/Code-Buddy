@@ -247,10 +247,10 @@ export default function DiagramView({ projectId, diagram, onNodeClick }: Props) 
             maxZoom={1.8}
             proOptions={{ hideAttribution: true }}
           >
-            <Background variant={BackgroundVariant.Dots} color="#334155" gap={20} size={1} />
+            <Background variant={BackgroundVariant.Dots} color="#cbd5e1" gap={20} size={1} />
             <MiniMap
-              nodeColor={(n) => (n.data as { node?: DiagramNode })?.node?.color || "#6366f1"}
-              maskColor="rgba(11,16,32,0.8)"
+              nodeColor={(n) => (n.data as { node?: DiagramNode })?.node?.color || "#2563eb"}
+              maskColor="rgba(248,250,252,0.85)"
               pannable
               zoomable
             />

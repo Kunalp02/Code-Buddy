@@ -302,15 +302,26 @@ def _count_components(project_id: str) -> int:
         return row["c"] if row else 0
 
 
-def create_project(path: str) -> dict:
-    root = Path(path).resolve()
+def create_project(
+    path: str | None = None,
+    source: str = "local",
+    url: str | None = None,
+    branch: str | None = None,
+    token: str | None = None,
+) -> dict:
+    from server.indexer.sources import resolve_project_root
+
+    root, source_meta = resolve_project_root(source, path, url, branch, token)
     project_id = str(uuid.uuid4())[:8]
     meta = {
         "id": project_id,
         "path": str(root),
-        "name": root.name,
+        "name": source_meta.get("name") or root.name,
         "status": "indexing",
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "source": source_meta.get("source", "local"),
+        "source_url": source_meta.get("url"),
+        "branch": source_meta.get("branch"),
     }
     save_meta(project_id, meta)
     return index_project(project_id, root)

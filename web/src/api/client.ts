@@ -1,8 +1,13 @@
+export type ProjectSource = "local" | "github" | "gitlab";
+
 export interface ProjectMeta {
   id: string;
   path: string;
   name: string;
   status: string;
+  source?: ProjectSource;
+  source_url?: string;
+  branch?: string;
   framework?: string;
   indexed_at?: string;
   entry_points?: string[];
@@ -90,11 +95,17 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ status: string; has_api_key: boolean; ollama_model: string }>("/api/health"),
   listProjects: () => request<ProjectMeta[]>("/api/projects"),
-  createProject: (path: string) =>
+  createProject: (body: {
+    source: ProjectSource;
+    path?: string;
+    url?: string;
+    branch?: string;
+    token?: string;
+  }) =>
     request<ProjectMeta>("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify(body),
     }),
   getProject: (id: string) => request<ProjectMeta & { progress?: unknown }>(`/api/projects/${id}`),
   getFiles: (id: string) => request<{ path: string; language: string; line_count: number }[]>(`/api/projects/${id}/files`),

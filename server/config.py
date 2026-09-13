@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     ollama_model_deep: str = "gpt-oss:120b"
 
     data_dir: Path = Path(".code-buddy-data")
+    repos_dir: Path = Path(".code-buddy-data") / "repos"
     max_snippet_lines: int = 120
     max_agent_tool_calls: int = 16
 
@@ -68,3 +69,4 @@ class Settings(BaseSettings):
 
 settings = Settings()
 settings.data_dir.mkdir(parents=True, exist_ok=True)
+settings.repos_dir.mkdir(parents=True, exist_ok=True)

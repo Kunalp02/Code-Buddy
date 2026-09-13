@@ -4,7 +4,7 @@ Local-first codebase intelligence: point at a project folder, get a searchable c
 
 ## What it does
 
-1. **Load** a local project path
+1. **Load** a project from a local path, GitHub, or GitLab
 2. **Index** files with Tree-sitter (symbols, imports, routes, modules) — Python, JavaScript/TypeScript, Go, Java, Rust, C#, Dart, Docker
 3. **Explore** the codebase with search, file tree, and symbol navigation
 4. **Visualize** system architecture (DB, cache, Docker), module maps, and route flows
@@ -45,8 +45,8 @@ chmod +x scripts/dev.sh
 ### 4. Use
 
 1. Open http://localhost:5173
-2. Enter a local project path (e.g. `/home/you/projects/my-app`)
-3. Click **Scan & Index**
+2. Choose **Local**, **GitHub**, or **GitLab** and provide path or repository URL
+3. Click **Scan & index project**
 4. Explore **Diagram**, **Explorer**, **Agent Chat**, **Documentation**, and **Context Pack**
 
 ## Architecture

@@ -47,7 +47,11 @@ app.add_middleware(
 
 
 class CreateProjectRequest(BaseModel):
-    path: str = Field(..., description="Absolute or relative local project path")
+    source: str = Field("local", description="local | github | gitlab")
+    path: str | None = Field(None, description="Local directory path (required for source=local)")
+    url: str | None = Field(None, description="Repository URL or owner/repo (github/gitlab)")
+    branch: str | None = Field(None, description="Git branch to clone")
+    token: str | None = Field(None, description="Optional PAT for private repositories")
 
 
 class ChatRequest(BaseModel):
@@ -95,14 +99,22 @@ def api_list_projects():
 
 @app.post("/api/projects")
 def api_create_project(body: CreateProjectRequest):
-    path = Path(body.path).expanduser()
-    if not path.exists():
-        raise HTTPException(status_code=400, detail=f"Path does not exist: {path}")
-    if not path.is_dir():
-        raise HTTPException(status_code=400, detail=f"Path is not a directory: {path}")
+    source = (body.source or "local").lower()
+    if source == "local" and not body.path:
+        raise HTTPException(status_code=400, detail="path is required for local projects")
+    if source in {"github", "gitlab"} and not body.url:
+        raise HTTPException(status_code=400, detail="url is required for git repositories")
     try:
-        meta = create_project(str(path.resolve()))
+        meta = create_project(
+            path=body.path,
+            source=source,
+            url=body.url,
+            branch=body.branch,
+            token=body.token,
+        )
         return meta
+    except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
