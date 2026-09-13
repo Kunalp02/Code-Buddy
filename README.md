@@ -45,6 +45,10 @@ chmod +x scripts/dev.sh
 - UI: http://localhost:5173
 - API: http://127.0.0.1:8000
 
+## Documentation
+
+- **[Architecture Deep Dive](docs/ARCHITECTURE.md)** — how indexing, the code graph, agent, diagrams, docs, and context packs work behind the scenes
+
 ## Code intelligence
 
 Arcfold builds a **two-tier index**:
